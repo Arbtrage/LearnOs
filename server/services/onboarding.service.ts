@@ -2,11 +2,10 @@ import {
   normalizeOnboardingBatchResponse,
   parseQuestionnaireMetadata,
 } from "@/lib/ai/normalize/onboarding";
-import {
-  buildOnboardingBatchSystemPrompt,
-  buildOnboardingBatchUserPrompt,
-  type PastProjectContext,
-} from "@/lib/ai/prompts/onboarding";
+import { formatAnswerForDisplay } from "@/lib/ai/format-answer";
+import { buildOnboardingBatchPrompt } from "@/lib/ai/prompts/onboarding-batch";
+import type { PastProjectContext } from "@/lib/ai/prompts/onboarding-types";
+import { combineSystem } from "@/lib/ai/prompts/parts";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -23,7 +22,7 @@ import {
   type QuestionnaireMetadata,
 } from "@/types/onboarding";
 
-const MAX_PAST_PROJECTS = 5;
+const MAX_PAST_PROJECTS = 3;
 
 export class OnboardingService {
   static async getOrStartOnboarding(
@@ -156,17 +155,6 @@ export class OnboardingService {
       return state;
     }
 
-    const messages = await messageRepository.listByConversationId(conversationId);
-    const hasLegacyInterview = messages.some(
-      (m) =>
-        m.role === "assistant" &&
-        m.metadata &&
-        !parseQuestionnaireMetadata(m.metadata),
-    );
-    if (hasLegacyInterview) {
-      return state;
-    }
-
     const priorAnswers = await interviewAnswerRepository.listByConversationId(
       conversationId,
     );
@@ -213,15 +201,15 @@ export class OnboardingService {
     currentProjectId: string,
   ): Promise<PastProjectContext[]> {
     const projects = await projectRepository.listByUserId(userId);
-    return projects
-      .filter((p) => p.id !== currentProjectId)
-      .slice(0, MAX_PAST_PROJECTS)
-      .map((p) => ({
-        title: p.title,
-        goal: p.goal,
-        category: p.category,
-        status: p.status,
-      }));
+    const others = projects.filter((p) => p.id !== currentProjectId);
+    const cap = others.length < 5 ? others.length : MAX_PAST_PROJECTS;
+
+    return others.slice(0, cap).map((p) => ({
+      title: p.title,
+      goal: p.goal,
+      category: p.category,
+      status: p.status,
+    }));
   }
 
   private static async generateQuestionnaire(
@@ -231,13 +219,18 @@ export class OnboardingService {
     pastProjects: PastProjectContext[],
   ): Promise<QuestionnaireMetadata> {
     const provider = getAIProvider();
-    const system = buildOnboardingBatchSystemPrompt(goal, title);
-    const prompt = buildOnboardingBatchUserPrompt(priorAnswers, pastProjects);
+    const parts = buildOnboardingBatchPrompt(
+      title,
+      goal,
+      priorAnswers,
+      pastProjects,
+    );
 
     try {
       const raw = await provider.generateObject({
-        system,
-        prompt,
+        flow: "onboarding",
+        system: combineSystem(parts),
+        prompt: parts.user,
         schema: onboardingBatchAiSchema,
       });
       return normalizeOnboardingBatchResponse(raw);
@@ -257,21 +250,19 @@ export class OnboardingService {
       conversationId,
     );
     const conversation = await conversationRepository.findById(conversationId);
-
     const questionnaire = await this.getQuestionnaire(conversationId);
 
     const chatMessages = messages.map((m) => {
-      const batch = parseQuestionnaireMetadata(m.metadata);
-      const parsedQuestion =
-        !batch && m.metadata && m.role === "assistant"
-          ? parseLegacyQuestion(m.metadata)
-          : undefined;
+      const legacyQuestion =
+        m.metadata && m.role === "assistant"
+          ? parseLegacyQuestionMetadata(m.metadata)
+          : null;
 
       return {
         id: m.id,
         role: m.role as "user" | "assistant" | "system",
         content: m.content,
-        ...(parsedQuestion ? { question: parsedQuestion } : {}),
+        ...(legacyQuestion ? { question: legacyQuestion } : {}),
       };
     });
 
@@ -293,26 +284,6 @@ export class OnboardingService {
       } else if (!isComplete && answerCount < questionnaire.questions.length) {
         currentQuestion = questionnaire.questions[answerCount] ?? null;
       }
-    } else {
-      const answeredKeys = new Set(answers.map((a) => a.questionKey));
-
-      if (isComplete && lastAssistant) {
-        summary = lastAssistant.content;
-      } else {
-        for (let i = messages.length - 1; i >= 0; i -= 1) {
-          const message = messages[i];
-          if (message.role !== "assistant" || !message.metadata) {
-            continue;
-          }
-          const question = parseLegacyQuestion(message.metadata);
-          if (question && !answeredKeys.has(question.key)) {
-            currentQuestion = question;
-            break;
-          }
-        }
-      }
-
-      totalQuestions = Math.max(answerCount + (currentQuestion ? 1 : 0), 1);
     }
 
     return {
@@ -329,20 +300,10 @@ export class OnboardingService {
   }
 }
 
-function parseLegacyQuestion(metadata: unknown): Question | null {
+function parseLegacyQuestionMetadata(metadata: unknown): Question | null {
+  if (parseQuestionnaireMetadata(metadata)) {
+    return null;
+  }
   const direct = questionSchema.safeParse(metadata);
-  if (direct.success) {
-    return direct.data;
-  }
-  return null;
-}
-
-function formatAnswerForDisplay(answer: InterviewAnswerValue): string {
-  if (Array.isArray(answer)) {
-    return answer.join(", ");
-  }
-  if (typeof answer === "boolean") {
-    return answer ? "Yes" : "No";
-  }
-  return String(answer);
+  return direct.success ? direct.data : null;
 }

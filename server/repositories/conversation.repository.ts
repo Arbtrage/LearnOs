@@ -25,6 +25,15 @@ export const conversationRepository = {
     });
   },
 
+  async findLatestCompletedByProjectId(
+    projectId: string,
+  ): Promise<AIConversation | null> {
+    return prisma.aIConversation.findFirst({
+      where: { projectId, completedAt: { not: null } },
+      orderBy: { completedAt: "desc" },
+    });
+  },
+
   async create(projectId: string): Promise<AIConversation> {
     return prisma.aIConversation.create({ data: { projectId } });
   },

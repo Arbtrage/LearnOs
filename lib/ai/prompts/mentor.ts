@@ -1,33 +1,46 @@
 import { MENTOR_NAME, MENTOR_TAGLINE } from "@/constants/ai-persona";
+import { formatAnswerCompact } from "@/lib/ai/format-answer";
+import type { PromptParts } from "@/lib/ai/prompts/parts";
 
-export function buildMentorSystemPrompt(input: {
+export type MentorPromptInput = {
   title: string;
   goal: string;
   blueprintTitle?: string;
   methodology?: string;
+  currentMilestone?: string;
   section?: string;
-}): string {
-  const lines = [
-    `You are ${MENTOR_NAME}, LearnOS's ${MENTOR_TAGLINE.toLowerCase()}.`,
+  interviewAnswers?: Array<{ questionKey: string; answer: unknown }>;
+};
+
+export function buildMentorPrompt(input: MentorPromptInput): PromptParts {
+  const profileLines: string[] = [];
+
+  if (input.interviewAnswers && input.interviewAnswers.length > 0) {
+    profileLines.push("Learner profile (from onboarding):");
+    for (const answer of input.interviewAnswers.slice(0, 8)) {
+      profileLines.push(
+        `- ${answer.questionKey}: ${formatAnswerCompact(answer.answer)}`,
+      );
+    }
+  }
+
+  const dynamicLines = [
     `Project: ${input.title}`,
     `Goal: ${input.goal}`,
-  ];
+    input.blueprintTitle ? `Blueprint: ${input.blueprintTitle}` : "",
+    input.methodology ? `Methodology: ${input.methodology}` : "",
+    input.currentMilestone ? `Current milestone: ${input.currentMilestone}` : "",
+    input.section ? `Current workspace section: ${input.section}` : "",
+    profileLines.length > 0 ? "" : "",
+    ...profileLines,
+  ].filter((line, index, arr) => line !== "" || index < arr.length - 1);
 
-  if (input.blueprintTitle) {
-    lines.push(`Blueprint: ${input.blueprintTitle}`);
-  }
-  if (input.methodology) {
-    lines.push(`Methodology: ${input.methodology}`);
-  }
-  if (input.section) {
-    lines.push(`Current workspace section: ${input.section}`);
-  }
+  return {
+    staticSystem: `You are ${MENTOR_NAME}, LearnOS's ${MENTOR_TAGLINE.toLowerCase()}.
 
-  lines.push(
-    "",
-    "Help the learner with planning, motivation, explanations, and rescheduling.",
-    "Keep responses focused and actionable. Use markdown when helpful.",
-  );
-
-  return lines.join("\n");
+Help the learner with planning, motivation, explanations, and rescheduling.
+Keep responses focused and actionable. Use markdown when helpful.`,
+    dynamicSystem: dynamicLines.join("\n"),
+    user: "",
+  };
 }

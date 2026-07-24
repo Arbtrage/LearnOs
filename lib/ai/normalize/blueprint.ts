@@ -1,18 +1,16 @@
-import type { z } from "zod";
 import {
   buildSidebarFromBlueprint,
+  sectionKeyForRoute,
   type AiSidebarSectionInput,
 } from "@/lib/navigation/learning-framework";
 import {
   SIDEBAR_ROUTES,
-  WIDGET_TYPES,
   blueprintAiSchema,
   type BlueprintGeneration,
   type SidebarRoute,
-  type WidgetType,
 } from "@/types/blueprint";
 
-const DEFAULT_WIDGETS: BlueprintGeneration["widgets"] = [
+export const DEFAULT_WIDGETS: BlueprintGeneration["widgets"] = [
   { type: "learning_health", config: {}, order: 0 },
   { type: "today_tasks", config: {}, order: 1 },
   { type: "milestone", config: {}, order: 2 },
@@ -32,81 +30,38 @@ function coerceRoute(route: string): SidebarRoute {
   if (normalized.includes("note")) return "notes";
   if (normalized.includes("resource")) return "resources";
   if (normalized.includes("analytic")) return "analytics";
-  if (normalized.includes("mentor")) return "mentor";
   if (normalized.includes("revision") || normalized.includes("review")) return "revision";
   return "overview";
 }
 
-function coerceWidgetType(type: string): WidgetType | null {
-  const normalized = type.toLowerCase().trim();
-  if (WIDGET_TYPES.includes(normalized as WidgetType)) {
-    return normalized as WidgetType;
-  }
-  if (normalized.includes("health")) return "learning_health";
-  if (normalized.includes("task") || normalized.includes("today")) return "today_tasks";
-  if (normalized.includes("milestone")) return "milestone";
-  if (normalized.includes("streak")) return "streak";
-  if (normalized.includes("revision") || normalized.includes("review")) return "revision";
-  return null;
-}
+function sidebarLabelsToSections(
+  labels: Array<{ route: string; label: string; description?: string }>,
+): AiSidebarSectionInput[] {
+  const bySection = new Map<string, AiSidebarSectionInput>();
 
-function isValidUrl(value: string): boolean {
-  try {
-    new URL(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function normalizeAiSections(
-  parsed: z.infer<typeof blueprintAiSchema>,
-): AiSidebarSectionInput[] | undefined {
-  if (parsed.sidebarSections && parsed.sidebarSections.length > 0) {
-    return parsed.sidebarSections.map((section) => ({
-      sectionKey: section.sectionKey,
-      description: section.description,
-      items: section.items.map((item) => ({
-        route: coerceRoute(item.route),
-        label: item.label,
-        icon: item.icon,
-        visible: item.visible,
-        description: item.description,
-        config: item.config,
-      })),
-    }));
+  for (const item of labels) {
+    const route = coerceRoute(item.route);
+    const sectionKey = sectionKeyForRoute(route);
+    const existing = bySection.get(sectionKey) ?? {
+      sectionKey,
+      items: [],
+    };
+    existing.items.push({
+      route,
+      label: item.label,
+      visible: true,
+      description: item.description,
+    });
+    bySection.set(sectionKey, existing);
   }
 
-  if (parsed.sidebar && parsed.sidebar.length > 0) {
-    const bySection = new Map<string, AiSidebarSectionInput>();
-
-    for (const item of parsed.sidebar) {
-      const route = coerceRoute(item.route);
-      const sectionKey = item.sectionKey ?? "learn";
-      const existing = bySection.get(sectionKey) ?? {
-        sectionKey,
-        items: [],
-      };
-      existing.items.push({
-        route,
-        label: item.label,
-        icon: item.icon,
-        visible: item.visible,
-        description: item.description,
-      });
-      bySection.set(sectionKey, existing);
-    }
-
-    return [...bySection.values()];
-  }
-
-  return undefined;
+  return [...bySection.values()];
 }
 
 export function normalizeBlueprintResponse(raw: unknown): BlueprintGeneration {
   const parsed = blueprintAiSchema.parse(raw);
 
-  const aiSections = normalizeAiSections(parsed);
+  const aiSections = sidebarLabelsToSections(parsed.sidebarLabels);
   const frameworkItems = buildSidebarFromBlueprint(aiSections);
 
   const sidebar = frameworkItems.map((item) => ({
@@ -120,29 +75,11 @@ export function normalizeBlueprintResponse(raw: unknown): BlueprintGeneration {
     config: item.config ?? null,
   }));
 
-  const widgets =
-    parsed.widgets && parsed.widgets.length > 0
-      ? parsed.widgets
-          .map((widget, index) => {
-            const type = coerceWidgetType(widget.type);
-            if (!type) return null;
-            return {
-              type,
-              config: widget.config ?? {},
-              order: Number.isFinite(widget.order) ? widget.order : index,
-            };
-          })
-          .filter((widget): widget is BlueprintGeneration["widgets"][number] =>
-            Boolean(widget),
-          )
-      : DEFAULT_WIDGETS;
-
-  const recommendedResources = (parsed.recommendedResources ?? []).filter(
-    (resource) => resource.title && isValidUrl(resource.url),
-  );
-
   return {
-    project: parsed.project,
+    project: {
+      title: parsed.blueprint.title.trim(),
+      summary: parsed.project.summary.trim(),
+    },
     blueprint: {
       ...parsed.blueprint,
       durationWeeks: Math.min(
@@ -155,8 +92,7 @@ export function normalizeBlueprintResponse(raw: unknown): BlueprintGeneration {
       order: Number.isFinite(milestone.order) ? milestone.order : index,
     })),
     sidebar,
-    widgets: widgets.length > 0 ? widgets : DEFAULT_WIDGETS,
-    recommendedResources:
-      recommendedResources.length > 0 ? recommendedResources : undefined,
+    widgets: DEFAULT_WIDGETS,
+    recommendedResources: undefined,
   };
 }

@@ -25,21 +25,6 @@ export const LEARNING_SECTION_KEYS = [
 
 export type LearningSectionKey = (typeof LEARNING_SECTION_KEYS)[number];
 
-const sidebarItemAiSchema = z.object({
-  route: z.string(),
-  label: z.string(),
-  icon: z.string().optional(),
-  visible: z.boolean().optional(),
-  description: z.string().optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
-});
-
-const sidebarSectionAiSchema = z.object({
-  sectionKey: z.string(),
-  description: z.string().optional(),
-  items: z.array(sidebarItemAiSchema).min(1),
-});
-
 export const WIDGET_TYPES = [
   "learning_health",
   "today_tasks",
@@ -50,10 +35,9 @@ export const WIDGET_TYPES = [
 
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 
-/** Forgiving schema for Gemini structured output. */
+/** Forgiving schema for Gemini structured output (slim — widgets/resources are server-side). */
 export const blueprintAiSchema = z.object({
   project: z.object({
-    title: z.string(),
     summary: z.string(),
   }),
   blueprint: z.object({
@@ -70,39 +54,17 @@ export const blueprintAiSchema = z.object({
         order: z.coerce.number(),
       }),
     )
-    .min(1),
-  sidebarSections: z.array(sidebarSectionAiSchema).optional(),
-  sidebar: z
+    .min(3)
+    .max(6),
+  sidebarLabels: z
     .array(
       z.object({
-        label: z.string(),
-        icon: z.string(),
         route: z.string(),
-        order: z.coerce.number(),
-        visible: z.boolean().optional(),
-        sectionKey: z.string().optional(),
+        label: z.string(),
         description: z.string().optional(),
       }),
     )
-    .optional(),
-  widgets: z
-    .array(
-      z.object({
-        type: z.string(),
-        config: z.record(z.string(), z.unknown()).optional(),
-        order: z.coerce.number(),
-      }),
-    )
-    .optional(),
-  recommendedResources: z
-    .array(
-      z.object({
-        title: z.string(),
-        url: z.string(),
-        type: z.string(),
-      }),
-    )
-    .optional(),
+    .min(1),
 });
 
 export const blueprintGenerationSchema = z.object({

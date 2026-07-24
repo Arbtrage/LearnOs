@@ -1,8 +1,15 @@
 import { type UIMessage } from "ai";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { buildMentorSystemPrompt } from "@/lib/ai/prompts/mentor";
+import { buildMentorPrompt } from "@/lib/ai/prompts/mentor";
+import {
+  historyTruncationNote,
+  truncateChatHistory,
+} from "@/lib/ai/messages/truncate-history";
+import { combineSystem } from "@/lib/ai/prompts/parts";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
+import { conversationRepository } from "@/server/repositories/conversation.repository";
+import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
 import { BlueprintService } from "@/server/services/blueprint.service";
 import { ProjectService } from "@/server/services/project.service";
 
@@ -40,17 +47,37 @@ export async function POST(
   }
 
   const blueprint = await BlueprintService.getByProjectId(project.id);
-  const system = buildMentorSystemPrompt({
+  const completedConversation =
+    await conversationRepository.findLatestCompletedByProjectId(project.id);
+
+  const interviewAnswers = completedConversation
+    ? (
+        await interviewAnswerRepository.listByConversationId(
+          completedConversation.id,
+        )
+      ).map((a) => ({
+        questionKey: a.questionKey,
+        answer: a.answer,
+      }))
+    : [];
+
+  const parts = buildMentorPrompt({
     title: project.title,
     goal: project.goal,
     blueprintTitle: blueprint?.title,
     methodology: blueprint?.methodology,
+    currentMilestone: blueprint?.stages[0]?.title,
     section: parsed.data.section,
+    interviewAnswers,
   });
 
+  const { messages, truncated } = truncateChatHistory(parsed.data.messages);
+
   const result = await getAIProvider().streamText({
-    system,
-    messages: parsed.data.messages,
+    flow: "mentor",
+    system: combineSystem(parts),
+    messages,
+    historyNote: historyTruncationNote(truncated),
   });
 
   return result.toUIMessageStreamResponse();

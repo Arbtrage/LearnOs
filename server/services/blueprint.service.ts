@@ -1,9 +1,7 @@
 import { normalizeBlueprintResponse } from "@/lib/ai/normalize/blueprint";
 import { DEFAULT_GEMINI_MODEL } from "@/lib/ai/config";
-import {
-  buildBlueprintSystemPrompt,
-  buildBlueprintUserPrompt,
-} from "@/lib/ai/prompts/blueprint";
+import { buildBlueprintPrompt } from "@/lib/ai/prompts/blueprint";
+import { combineSystem } from "@/lib/ai/prompts/parts";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -11,7 +9,6 @@ import { blueprintRepository } from "@/server/repositories/blueprint.repository"
 import { conversationRepository } from "@/server/repositories/conversation.repository";
 import { dashboardWidgetRepository } from "@/server/repositories/dashboard-widget.repository";
 import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
-import { messageRepository } from "@/server/repositories/message.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { sidebarRepository } from "@/server/repositories/sidebar.repository";
 import { blueprintAiSchema } from "@/types/blueprint";
@@ -52,10 +49,8 @@ export class BlueprintService {
     inFlightGenerations.add(projectId);
 
     try {
-      const conversation = await conversationRepository.findActiveByProjectId(projectId);
       const completedConversation =
-        conversation ??
-        (await prismaFindLatestCompletedConversation(projectId));
+        await conversationRepository.findLatestCompletedByProjectId(projectId);
 
       if (!completedConversation) {
         throw new Error("No completed onboarding interview found");
@@ -64,26 +59,22 @@ export class BlueprintService {
       const answers = await interviewAnswerRepository.listByConversationId(
         completedConversation.id,
       );
-      const messages = await messageRepository.listByConversationId(
-        completedConversation.id,
-      );
-      const summary =
-        [...messages].reverse().find((m) => m.role === "assistant")?.content ??
-        project.goal;
+
+      const parts = buildBlueprintPrompt({
+        title: project.title,
+        goal: project.goal,
+        category: project.category,
+        answers: answers.map((a) => ({
+          questionKey: a.questionKey,
+          answer: a.answer,
+        })),
+      });
 
       const provider = getAIProvider();
       const raw = await provider.generateObject({
-        system: buildBlueprintSystemPrompt(),
-        prompt: buildBlueprintUserPrompt({
-          title: project.title,
-          goal: project.goal,
-          category: project.category,
-          summary,
-          answers: answers.map((a) => ({
-            questionKey: a.questionKey,
-            answer: a.answer,
-          })),
-        }),
+        flow: "blueprint",
+        system: combineSystem(parts),
+        prompt: parts.user,
         schema: blueprintAiSchema,
       });
       const generated = normalizeBlueprintResponse(raw);
@@ -98,7 +89,6 @@ export class BlueprintService {
           generatedBy: process.env.GOOGLE_GENERATIVE_AI_MODEL ?? DEFAULT_GEMINI_MODEL,
           metadata: {
             projectSummary: generated.project.summary,
-            recommendedResources: generated.recommendedResources ?? [],
           },
           stages: generated.milestones.map((m) => ({
             title: m.title,
@@ -146,12 +136,4 @@ export class BlueprintService {
       inFlightGenerations.delete(projectId);
     }
   }
-}
-
-async function prismaFindLatestCompletedConversation(projectId: string) {
-  const { prisma } = await import("@/lib/db/prisma");
-  return prisma.aIConversation.findFirst({
-    where: { projectId, completedAt: { not: null } },
-    orderBy: { completedAt: "desc" },
-  });
 }

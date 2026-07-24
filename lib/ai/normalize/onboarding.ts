@@ -1,8 +1,6 @@
 import {
-  onboardingAiResponseSchema,
   onboardingBatchAiSchema,
   questionSchema,
-  type OnboardingResponse,
   type Question,
   type QuestionnaireMetadata,
 } from "@/types/onboarding";
@@ -149,31 +147,4 @@ export function parseQuestionnaireMetadata(
   } catch {
     return null;
   }
-}
-
-export function normalizeOnboardingResponse(raw: unknown): OnboardingResponse {
-  const parsed = onboardingAiResponseSchema.parse(raw);
-
-  if (parsed.kind === "done") {
-    if (!parsed.summary?.trim()) {
-      throw new Error("Onboarding completion missing summary");
-    }
-    return {
-      kind: "done",
-      summary: parsed.summary.trim(),
-      assistantMessage: parsed.assistantMessage,
-    };
-  }
-
-  if (!parsed.question) {
-    throw new Error("Onboarding question missing question payload");
-  }
-
-  const question = normalizeRawQuestion(parsed.question);
-
-  return {
-    kind: "question",
-    question,
-    assistantMessage: parsed.assistantMessage,
-  };
 }

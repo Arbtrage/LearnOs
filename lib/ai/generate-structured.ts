@@ -1,14 +1,25 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateObject, generateText, NoObjectGeneratedError } from "ai";
 import type { z } from "zod";
-import { getGeminiModelCandidates } from "@/lib/ai/config";
+import {
+  getGeminiModelCandidates,
+  STRUCTURED_OUTPUT_TEMPERATURE,
+} from "@/lib/ai/config";
 import { AIProviderError, isQuotaOrRateLimitError } from "@/lib/ai/errors";
+import type { AIFlow } from "@/lib/ai/usage";
+import { logAIUsage, usageFromResult } from "@/lib/ai/usage";
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
+const REPAIR_SYSTEM =
+  "Fix the JSON object so it validates against the required schema. Return ONLY valid JSON. No markdown.";
+
+const MAX_REPAIR_JSON_CHARS = 2000;
+
 export type GenerateStructuredParams<T extends z.ZodType> = {
+  flow: AIFlow;
   system: string;
   prompt: string;
   schema: T;
@@ -43,18 +54,27 @@ function isSchemaError(error: unknown): boolean {
 export async function generateStructured<T extends z.ZodType>(
   params: GenerateStructuredParams<T>,
 ): Promise<z.infer<T>> {
-  const models = getGeminiModelCandidates();
+  const models = getGeminiModelCandidates(params.flow);
   let lastQuotaError: unknown;
   let lastError: unknown;
 
   for (const modelId of models) {
+    const started = Date.now();
     try {
-      const { object } = await generateObject({
+      const { object, usage } = await generateObject({
         model: google(modelId),
         system: params.system,
         prompt: params.prompt,
         schema: params.schema,
+        temperature: STRUCTURED_OUTPUT_TEMPERATURE,
         maxRetries: 1,
+      });
+
+      logAIUsage({
+        flow: params.flow,
+        model: modelId,
+        durationMs: Date.now() - started,
+        ...usageFromResult(usage),
       });
 
       const validated = params.schema.safeParse(object);
@@ -64,9 +84,8 @@ export async function generateStructured<T extends z.ZodType>(
 
       lastError = validated.error;
       const repaired = await repairStructured({
+        flow: params.flow,
         modelId,
-        system: params.system,
-        prompt: params.prompt,
         schema: params.schema,
         invalidText: JSON.stringify(object),
         errorMessage: validated.error.message,
@@ -85,9 +104,8 @@ export async function generateStructured<T extends z.ZodType>(
 
         try {
           const repaired = await repairStructured({
+            flow: params.flow,
             modelId,
-            system: params.system,
-            prompt: params.prompt,
             schema: params.schema,
             invalidText,
             errorMessage:
@@ -119,33 +137,41 @@ export async function generateStructured<T extends z.ZodType>(
 }
 
 async function repairStructured<T extends z.ZodType>(input: {
+  flow: AIFlow;
   modelId: string;
-  system: string;
-  prompt: string;
   schema: T;
   invalidText?: string;
   errorMessage: string;
 }): Promise<z.infer<T> | null> {
+  const truncatedInvalid = input.invalidText
+    ? input.invalidText.slice(0, MAX_REPAIR_JSON_CHARS)
+    : undefined;
+
   const repairPrompt = [
-    input.prompt,
-    "",
-    "Your previous response failed validation.",
-    `Error: ${input.errorMessage}`,
-    input.invalidText ? `Previous output:\n${input.invalidText}` : "",
-    "",
-    "Return ONLY valid JSON that matches the required schema. No markdown.",
+    `Validation error: ${input.errorMessage}`,
+    truncatedInvalid ? `Invalid JSON:\n${truncatedInvalid}` : "",
+    "Return corrected JSON only.",
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
-  const { text } = await generateText({
+  const started = Date.now();
+  const { text, usage } = await generateText({
     model: google(input.modelId),
-    system: input.system,
+    system: REPAIR_SYSTEM,
     prompt: repairPrompt,
+    temperature: STRUCTURED_OUTPUT_TEMPERATURE,
     maxRetries: 0,
     providerOptions: {
       google: { responseMimeType: "application/json" },
     },
+  });
+
+  logAIUsage({
+    flow: input.flow,
+    model: `${input.modelId}:repair`,
+    durationMs: Date.now() - started,
+    ...usageFromResult(usage),
   });
 
   const parsed = input.schema.safeParse(extractJson(text));

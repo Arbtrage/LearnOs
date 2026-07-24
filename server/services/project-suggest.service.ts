@@ -1,7 +1,5 @@
-import {
-  buildProjectSuggestSystemPrompt,
-  buildProjectSuggestUserPrompt,
-} from "@/lib/ai/prompts/project-suggest";
+import { buildProjectSuggestPrompt } from "@/lib/ai/prompts/project-suggest";
+import { combineSystem } from "@/lib/ai/prompts/parts";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import { projectIconMap } from "@/features/projects/project-icons";
@@ -13,11 +11,13 @@ import {
 export class ProjectSuggestService {
   static async suggest(learningIntent: string): Promise<ProjectSuggest> {
     const provider = getAIProvider();
+    const parts = buildProjectSuggestPrompt(learningIntent);
 
     try {
       const raw = await provider.generateObject({
-        system: buildProjectSuggestSystemPrompt(),
-        prompt: buildProjectSuggestUserPrompt(learningIntent),
+        flow: "project-suggest",
+        system: combineSystem(parts),
+        prompt: parts.user,
         schema: projectSuggestSchema,
       });
 

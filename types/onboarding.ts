@@ -67,42 +67,6 @@ export const questionSchema = z.discriminatedUnion("type", [
 
 export type Question = z.infer<typeof questionSchema>;
 
-/** Flat schema for Gemini structured output (forgiving). */
-export const onboardingAiResponseSchema = z.object({
-  kind: z.enum(["question", "done"]),
-  assistantMessage: z.string().optional(),
-  summary: z.string().optional(),
-  question: z
-    .object({
-      key: z.string(),
-      type: z.string(),
-      label: z.string(),
-      placeholder: z.string().optional(),
-      required: z.boolean().optional(),
-      min: z.number().optional(),
-      max: z.number().optional(),
-      step: z.number().optional(),
-      maxLength: z.number().optional(),
-      options: z.array(optionSchema).optional(),
-    })
-    .optional(),
-});
-
-export const onboardingResponseSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("question"),
-    question: questionSchema,
-    assistantMessage: z.string().optional(),
-  }),
-  z.object({
-    kind: z.literal("done"),
-    summary: z.string(),
-    assistantMessage: z.string().optional(),
-  }),
-]);
-
-export type OnboardingResponse = z.infer<typeof onboardingResponseSchema>;
-
 export type InterviewAnswerValue = string | number | boolean | string[];
 
 export type ChatMessage = {
