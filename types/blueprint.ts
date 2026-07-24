@@ -1,0 +1,132 @@
+import { z } from "zod";
+
+export const SIDEBAR_ROUTES = [
+  "overview",
+  "today",
+  "roadmap",
+  "topics",
+  "practice",
+  "revision",
+  "notes",
+  "resources",
+  "analytics",
+  "mentor",
+] as const;
+
+export type SidebarRoute = (typeof SIDEBAR_ROUTES)[number];
+
+export const WIDGET_TYPES = [
+  "learning_health",
+  "today_tasks",
+  "milestone",
+  "streak",
+  "revision",
+] as const;
+
+export type WidgetType = (typeof WIDGET_TYPES)[number];
+
+export const blueprintGenerationSchema = z.object({
+  project: z.object({
+    title: z.string(),
+    summary: z.string(),
+  }),
+  blueprint: z.object({
+    title: z.string(),
+    durationWeeks: z.number().int().min(1).max(104),
+    dailyCommitment: z.string(),
+    methodology: z.string(),
+  }),
+  milestones: z
+    .array(
+      z.object({
+        title: z.string(),
+        description: z.string(),
+        order: z.number().int().min(0),
+      }),
+    )
+    .min(1),
+  sidebar: z
+    .array(
+      z.object({
+        label: z.string(),
+        icon: z.string(),
+        route: z.enum(SIDEBAR_ROUTES),
+        order: z.number().int().min(0),
+        visible: z.boolean().default(true),
+      }),
+    )
+    .min(1),
+  widgets: z
+    .array(
+      z.object({
+        type: z.enum(WIDGET_TYPES),
+        config: z.record(z.string(), z.unknown()).default({}),
+        order: z.number().int().min(0),
+      }),
+    )
+    .min(1),
+  recommendedResources: z
+    .array(
+      z.object({
+        title: z.string(),
+        url: z.string().url(),
+        type: z.string(),
+      }),
+    )
+    .optional(),
+});
+
+export type BlueprintGeneration = z.infer<typeof blueprintGenerationSchema>;
+
+export type WorkspaceData = {
+  project: {
+    id: string;
+    slug: string;
+    title: string;
+    goal: string;
+    category: string | null;
+    status: string;
+    icon: string | null;
+    accentColor: string | null;
+  };
+  blueprint: {
+    id: string;
+    title: string;
+    durationWeeks: number;
+    dailyCommitment: string;
+    methodology: string;
+    stages: Array<{ id: string; title: string; description: string; order: number }>;
+  } | null;
+  sidebar: Array<{
+    id: string;
+    label: string;
+    icon: string;
+    route: string;
+    order: number;
+  }>;
+  isReady: boolean;
+};
+
+export type DashboardData = {
+  widgets: Array<{
+    id: string;
+    type: string;
+    config: Record<string, unknown>;
+    order: number;
+  }>;
+  metrics: {
+    learningHealth: number;
+    todayTasks: number;
+    upcomingMilestone: string;
+    studyStreak: number;
+    revisionDue: number;
+  };
+};
+
+export type TodayTask = {
+  id: string;
+  title: string;
+  estimatedMinutes: number;
+  priority: "high" | "medium" | "low";
+  status: "pending" | "in_progress" | "done";
+};
