@@ -1,8 +1,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/app/generated/prisma/client";
 
+/** Bump when `schema.prisma` changes so dev HMR does not keep a stale client. */
+const PRISMA_CLIENT_BUILD_ID = "2026-07-24-sidebar-sectionKey";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaBuildId: string | undefined;
 };
 
 function createPrismaClient() {
@@ -18,8 +22,21 @@ function createPrismaClient() {
   });
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+function getPrismaClient(): PrismaClient {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    globalForPrisma.prismaBuildId !== PRISMA_CLIENT_BUILD_ID
+  ) {
+    void globalForPrisma.prisma?.$disconnect().catch(() => {});
+    globalForPrisma.prisma = undefined;
+    globalForPrisma.prismaBuildId = PRISMA_CLIENT_BUILD_ID;
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient();
+  }
+
+  return globalForPrisma.prisma;
 }
+
+export const prisma = getPrismaClient();

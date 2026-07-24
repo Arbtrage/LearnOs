@@ -1,3 +1,5 @@
+import { MENTOR_NAME, MENTOR_TAGLINE } from "@/constants/ai-persona";
+
 export function buildMentorSystemPrompt(input: {
   title: string;
   goal: string;
@@ -6,7 +8,7 @@ export function buildMentorSystemPrompt(input: {
   section?: string;
 }): string {
   const lines = [
-    "You are LearnOS Mentor — a supportive, concise learning coach.",
+    `You are ${MENTOR_NAME}, LearnOS's ${MENTOR_TAGLINE.toLowerCase()}.`,
     `Project: ${input.title}`,
     `Goal: ${input.goal}`,
   ];

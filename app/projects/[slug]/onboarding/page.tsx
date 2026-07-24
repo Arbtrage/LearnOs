@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BookOpen } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireSession } from "@/lib/auth/session";
-import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { SimplePageShell } from "@/components/layout/SimplePageShell";
+import { AppLogo } from "@/components/common/AppLogo";
 import { buttonVariants } from "@/components/ui/button";
 import { OnboardingWizard } from "@/features/onboarding/OnboardingWizard";
 import { OnboardingAIError } from "@/features/onboarding/OnboardingAIError";
@@ -40,46 +41,33 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
   })();
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/dashboard"
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1.5")}
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Dashboard
-            </Link>
-            <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-              <BookOpen className="size-5" aria-hidden="true" />
-              LearnOS
-            </Link>
-          </div>
-          <ThemeToggle />
+    <SimplePageShell
+      user={session.user}
+      contentClassName="p-0"
+      left={
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "gap-1.5")}
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Dashboard
+          </Link>
+          <AppLogo href="/dashboard" className="hidden sm:inline-flex" />
         </div>
-      </header>
-
-      <main className={`mx-auto max-w-6xl ${spacing.page} ${spacing.section}`}>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            AI onboarding
-          </h1>
-          <p className="text-muted-foreground">
-            Help us understand your goals for {project.title}
-          </p>
-        </div>
-
-        {state.ok ? (
-          <OnboardingWizard initialState={state.data} />
-        ) : (
+      }
+    >
+      {state.ok ? (
+        <OnboardingWizard initialState={state.data} />
+      ) : (
+        <main className={`mx-auto max-w-2xl ${spacing.page}`}>
           <OnboardingAIError
             message={state.error.message}
             projectTitle={project.title}
             projectSlug={project.slug}
           />
-        )}
-      </main>
-    </div>
+        </main>
+      )}
+    </SimplePageShell>
   );
 }

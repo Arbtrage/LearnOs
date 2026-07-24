@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/common/PageHeader";
 import { WorkspaceEmptyState } from "@/features/workspace/WorkspaceEmptyState";
 import { requireSession } from "@/lib/auth/session";
@@ -34,10 +34,6 @@ const SECTION_COPY: Record<string, { title: string; description: string }> = {
     title: "Analytics",
     description: "Progress analytics and learning insights are on the roadmap.",
   },
-  mentor: {
-    title: "Mentor",
-    description: "Use the AI Mentor panel on the right for coaching and planning.",
-  },
 };
 
 type PageProps = {
@@ -48,6 +44,10 @@ export default async function WorkspaceSectionPage({ params }: PageProps) {
   const session = await requireSession();
   const { slug, section } = await params;
 
+  if (section === "mentor") {
+    redirect(`/projects/${slug}/mentor`);
+  }
+
   if (section === "today" || section === "onboarding") {
     notFound();
   }
@@ -57,7 +57,9 @@ export default async function WorkspaceSectionPage({ params }: PageProps) {
     notFound();
   }
 
-  const allowed = SIDEBAR_ROUTES.filter((r) => r !== "overview" && r !== "today");
+  const allowed = SIDEBAR_ROUTES.filter(
+    (r) => r !== "overview" && r !== "today" && r !== "mentor",
+  );
   if (!allowed.includes(section as (typeof allowed)[number])) {
     notFound();
   }

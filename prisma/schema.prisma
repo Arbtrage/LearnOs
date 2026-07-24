@@ -149,14 +149,17 @@ model LearningStage {
 }
 
 model SidebarItem {
-  id        String          @id @default(cuid())
-  projectId String
-  label     String
-  icon      String
-  route     String
-  order     Int
-  visible   Boolean         @default(true)
-  project   LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id          String          @id @default(cuid())
+  projectId   String
+  label       String
+  icon        String
+  route       String
+  order       Int
+  visible     Boolean         @default(true)
+  sectionKey  String          @default("learn")
+  description String?
+  config      Json?
+  project     LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
 }

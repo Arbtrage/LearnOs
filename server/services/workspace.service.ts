@@ -43,8 +43,13 @@ export class WorkspaceService {
         icon: item.icon,
         route: item.route,
         order: item.order,
+        sectionKey: item.sectionKey,
+        description: item.description,
       })),
-      isReady: project.status === "ACTIVE" && blueprint !== null,
+      isReady:
+        project.status === "ACTIVE" &&
+        blueprint !== null &&
+        sidebar.length > 0,
     };
   }
 }

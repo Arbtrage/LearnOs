@@ -14,6 +14,15 @@ const answerBodySchema = z.object({
   ]),
 });
 
+const bootstrapBodySchema = z.object({
+  action: z.literal("bootstrap"),
+});
+
+const bodySchema = z.discriminatedUnion("action", [
+  answerBodySchema,
+  bootstrapBodySchema,
+]);
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ conversationId: string }> },
@@ -32,12 +41,20 @@ export async function POST(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = answerBodySchema.safeParse(body);
+  const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
   try {
+    if (parsed.data.action === "bootstrap") {
+      const state = await OnboardingService.bootstrapConversation(
+        session.user.id,
+        conversationId,
+      );
+      return NextResponse.json(state);
+    }
+
     const state = await OnboardingService.submitAnswer(
       session.user.id,
       conversationId,
@@ -47,7 +64,7 @@ export async function POST(
     return NextResponse.json(state);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Failed to process answer";
+      error instanceof Error ? error.message : "Failed to process request";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

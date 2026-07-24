@@ -1,4 +1,5 @@
 export type ProjectDraft = {
+  learningIntent: string;
   title: string;
   goal: string;
   category?: string;
@@ -7,9 +8,8 @@ export type ProjectDraft = {
   source: "template" | "custom";
 };
 
-export type CreateProjectStep = "choose" | "review";
-
 export const emptyCustomDraft: ProjectDraft = {
+  learningIntent: "",
   title: "",
   goal: "",
   category: "Custom",

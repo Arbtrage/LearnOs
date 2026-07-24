@@ -22,9 +22,23 @@ export function isQuotaOrRateLimitError(error: unknown): boolean {
   );
 }
 
+function isPrismaClientValidationError(error: unknown): boolean {
+  const message = collectErrorMessage(error);
+  return (
+    message.includes("Unknown argument") ||
+    message.includes("Invalid `") && message.includes("invocation")
+  );
+}
+
 export function toUserFacingAIError(error: unknown): AIProviderError {
   if (error instanceof AIProviderError) {
     return error;
+  }
+
+  if (isPrismaClientValidationError(error)) {
+    return new AIProviderError(
+      "Database client is out of date. Run `pnpm exec prisma generate`, restart the dev server, then retry.",
+    );
   }
 
   if (isQuotaOrRateLimitError(error)) {

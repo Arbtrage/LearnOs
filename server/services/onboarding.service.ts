@@ -1,20 +1,29 @@
 import {
-  buildOnboardingSystemPrompt,
-  buildOnboardingUserPrompt,
+  normalizeOnboardingBatchResponse,
+  parseQuestionnaireMetadata,
+} from "@/lib/ai/normalize/onboarding";
+import {
+  buildOnboardingBatchSystemPrompt,
+  buildOnboardingBatchUserPrompt,
+  type PastProjectContext,
 } from "@/lib/ai/prompts/onboarding";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { toUserFacingAIError } from "@/lib/ai/errors";
+import type { Prisma } from "@/app/generated/prisma/client";
 import { conversationRepository } from "@/server/repositories/conversation.repository";
 import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
 import { messageRepository } from "@/server/repositories/message.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import {
-  onboardingResponseSchema,
+  onboardingBatchAiSchema,
   questionSchema,
   type InterviewAnswerValue,
   type OnboardingState,
   type Question,
+  type QuestionnaireMetadata,
 } from "@/types/onboarding";
+
+const MAX_PAST_PROJECTS = 5;
 
 export class OnboardingService {
   static async getOrStartOnboarding(
@@ -36,26 +45,30 @@ export class OnboardingService {
     if (!conversation) {
       conversation = await conversationRepository.create(project.id);
       await projectRepository.updateStatus(project.id, "ONBOARDING");
-
-      const response = await this.generateNextQuestion(
-        project.goal,
-        project.title,
-        [],
-      );
-
-      if (response.kind === "question") {
-        await messageRepository.create({
-          conversationId: conversation.id,
-          role: "assistant",
-          content: response.assistantMessage ?? response.question.label,
-          metadata: response.question,
-        });
-      }
-
-      return this.loadState(conversation.id, project);
     }
 
-    return this.loadState(conversation.id, project);
+    return this.ensureQuestionnaire(userId, conversation.id, project);
+  }
+
+  static async bootstrapConversation(
+    userId: string,
+    conversationId: string,
+  ): Promise<OnboardingState> {
+    const conversation = await conversationRepository.findById(conversationId);
+    if (!conversation || conversation.project.userId !== userId) {
+      throw new Error("Conversation not found");
+    }
+
+    if (conversation.completedAt) {
+      throw new Error("Interview already completed");
+    }
+
+    const project = await projectRepository.findById(conversation.projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+
+    return this.ensureQuestionnaire(userId, conversationId, project);
   }
 
   static async submitAnswer(
@@ -78,6 +91,21 @@ export class OnboardingService {
       throw new Error("Project not found");
     }
 
+    const questionnaire = await this.getQuestionnaire(conversationId);
+    if (!questionnaire) {
+      throw new Error("Interview not ready. Please refresh and try again.");
+    }
+
+    const answers = await interviewAnswerRepository.listByConversationId(
+      conversationId,
+    );
+    const currentIndex = answers.length;
+    const currentQuestion = questionnaire.questions[currentIndex];
+
+    if (!currentQuestion || currentQuestion.key !== questionKey) {
+      throw new Error("Unexpected question. Please refresh and continue.");
+    }
+
     await interviewAnswerRepository.upsert(
       conversationId,
       questionKey,
@@ -90,58 +118,129 @@ export class OnboardingService {
       content: formatAnswerForDisplay(answer),
     });
 
-    const priorAnswers = await interviewAnswerRepository.listByConversationId(
+    const updatedAnswers = await interviewAnswerRepository.listByConversationId(
       conversationId,
     );
 
-    const response = await this.generateNextQuestion(
-      conversation.project.goal,
-      conversation.project.title,
+    if (updatedAnswers.length >= questionnaire.questions.length) {
+      await messageRepository.create({
+        conversationId,
+        role: "assistant",
+        content: questionnaire.closingSummary,
+      });
+      await conversationRepository.complete(conversationId);
+      await projectRepository.updateStatus(project.id, "GENERATING");
+    }
+
+    return this.loadState(conversationId, project);
+  }
+
+  private static async ensureQuestionnaire(
+    userId: string,
+    conversationId: string,
+    project: {
+      id: string;
+      slug: string;
+      title: string;
+      goal: string;
+      category?: string | null;
+    },
+  ): Promise<OnboardingState> {
+    const state = await this.loadState(conversationId, project);
+    if (state.isComplete || state.currentQuestion) {
+      return state;
+    }
+
+    const existing = await this.getQuestionnaire(conversationId);
+    if (existing) {
+      return state;
+    }
+
+    const messages = await messageRepository.listByConversationId(conversationId);
+    const hasLegacyInterview = messages.some(
+      (m) =>
+        m.role === "assistant" &&
+        m.metadata &&
+        !parseQuestionnaireMetadata(m.metadata),
+    );
+    if (hasLegacyInterview) {
+      return state;
+    }
+
+    const priorAnswers = await interviewAnswerRepository.listByConversationId(
+      conversationId,
+    );
+    const pastProjects = await this.loadPastProjects(userId, project.id);
+
+    const questionnaire = await this.generateQuestionnaire(
+      project.title,
+      project.goal,
       priorAnswers.map((a) => ({
         questionKey: a.questionKey,
         answer: a.answer,
       })),
-      { questionKey, answer },
+      pastProjects,
     );
-
-    if (response.kind === "done") {
-      await messageRepository.create({
-        conversationId,
-        role: "assistant",
-        content: response.summary,
-      });
-      await conversationRepository.complete(conversationId);
-      await projectRepository.updateStatus(project.id, "GENERATING");
-
-      return this.loadState(conversationId, project);
-    }
 
     await messageRepository.create({
       conversationId,
       role: "assistant",
-      content: response.assistantMessage ?? response.question.label,
-      metadata: response.question,
+      content: questionnaire.introMessage,
+      metadata: questionnaire as unknown as Prisma.InputJsonValue,
     });
 
     return this.loadState(conversationId, project);
   }
 
-  private static async generateNextQuestion(
-    goal: string,
+  private static async getQuestionnaire(
+    conversationId: string,
+  ): Promise<QuestionnaireMetadata | null> {
+    const messages = await messageRepository.listByConversationId(conversationId);
+    for (const message of messages) {
+      if (message.role !== "assistant" || !message.metadata) {
+        continue;
+      }
+      const parsed = parseQuestionnaireMetadata(message.metadata);
+      if (parsed) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  private static async loadPastProjects(
+    userId: string,
+    currentProjectId: string,
+  ): Promise<PastProjectContext[]> {
+    const projects = await projectRepository.listByUserId(userId);
+    return projects
+      .filter((p) => p.id !== currentProjectId)
+      .slice(0, MAX_PAST_PROJECTS)
+      .map((p) => ({
+        title: p.title,
+        goal: p.goal,
+        category: p.category,
+        status: p.status,
+      }));
+  }
+
+  private static async generateQuestionnaire(
     title: string,
+    goal: string,
     priorAnswers: Array<{ questionKey: string; answer: unknown }>,
-    latestAnswer?: { questionKey: string; answer: unknown },
-  ) {
+    pastProjects: PastProjectContext[],
+  ): Promise<QuestionnaireMetadata> {
     const provider = getAIProvider();
-    const system = buildOnboardingSystemPrompt(goal, title);
-    const prompt = buildOnboardingUserPrompt(priorAnswers, latestAnswer);
+    const system = buildOnboardingBatchSystemPrompt(goal, title);
+    const prompt = buildOnboardingBatchUserPrompt(priorAnswers, pastProjects);
 
     try {
-      return await provider.generateObject({
+      const raw = await provider.generateObject({
         system,
         prompt,
-        schema: onboardingResponseSchema,
+        schema: onboardingBatchAiSchema,
       });
+      return normalizeOnboardingBatchResponse(raw);
     } catch (error) {
       throw toUserFacingAIError(error);
     }
@@ -159,10 +258,13 @@ export class OnboardingService {
     );
     const conversation = await conversationRepository.findById(conversationId);
 
+    const questionnaire = await this.getQuestionnaire(conversationId);
+
     const chatMessages = messages.map((m) => {
+      const batch = parseQuestionnaireMetadata(m.metadata);
       const parsedQuestion =
-        m.metadata && m.role === "assistant"
-          ? parseQuestion(m.metadata)
+        !batch && m.metadata && m.role === "assistant"
+          ? parseLegacyQuestion(m.metadata)
           : undefined;
 
       return {
@@ -179,12 +281,38 @@ export class OnboardingService {
 
     let currentQuestion: Question | null = null;
     let summary: string | null = null;
+    let totalQuestions = 0;
     const isComplete = Boolean(conversation?.completedAt);
+    const answerCount = answers.length;
 
-    if (isComplete && lastAssistant) {
-      summary = lastAssistant.content;
-    } else if (lastAssistant?.metadata) {
-      currentQuestion = parseQuestion(lastAssistant.metadata);
+    if (questionnaire) {
+      totalQuestions = questionnaire.questions.length;
+
+      if (isComplete && lastAssistant) {
+        summary = lastAssistant.content;
+      } else if (!isComplete && answerCount < questionnaire.questions.length) {
+        currentQuestion = questionnaire.questions[answerCount] ?? null;
+      }
+    } else {
+      const answeredKeys = new Set(answers.map((a) => a.questionKey));
+
+      if (isComplete && lastAssistant) {
+        summary = lastAssistant.content;
+      } else {
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+          const message = messages[i];
+          if (message.role !== "assistant" || !message.metadata) {
+            continue;
+          }
+          const question = parseLegacyQuestion(message.metadata);
+          if (question && !answeredKeys.has(question.key)) {
+            currentQuestion = question;
+            break;
+          }
+        }
+      }
+
+      totalQuestions = Math.max(answerCount + (currentQuestion ? 1 : 0), 1);
     }
 
     return {
@@ -195,14 +323,18 @@ export class OnboardingService {
       currentQuestion,
       isComplete,
       summary,
-      answerCount: answers.length,
+      answerCount,
+      totalQuestions,
     };
   }
 }
 
-function parseQuestion(metadata: unknown): Question | null {
-  const result = questionSchema.safeParse(metadata);
-  return result.success ? result.data : null;
+function parseLegacyQuestion(metadata: unknown): Question | null {
+  const direct = questionSchema.safeParse(metadata);
+  if (direct.success) {
+    return direct.data;
+  }
+  return null;
 }
 
 function formatAnswerForDisplay(answer: InterviewAnswerValue): string {

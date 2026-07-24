@@ -1,3 +1,4 @@
+import { normalizeBlueprintResponse } from "@/lib/ai/normalize/blueprint";
 import { DEFAULT_GEMINI_MODEL } from "@/lib/ai/config";
 import {
   buildBlueprintSystemPrompt,
@@ -13,7 +14,7 @@ import { interviewAnswerRepository } from "@/server/repositories/interview-answe
 import { messageRepository } from "@/server/repositories/message.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { sidebarRepository } from "@/server/repositories/sidebar.repository";
-import { blueprintGenerationSchema } from "@/types/blueprint";
+import { blueprintAiSchema } from "@/types/blueprint";
 
 const inFlightGenerations = new Set<string>();
 
@@ -28,8 +29,16 @@ export class BlueprintService {
       throw new Error("Project not found");
     }
 
-    const existing = await blueprintRepository.findByProjectId(projectId);
-    if (existing) {
+    const existingBlueprint = await blueprintRepository.findByProjectId(projectId);
+    const existingSidebar = await sidebarRepository.listByProjectId(projectId);
+    const existingWidgets = await dashboardWidgetRepository.listByProjectId(projectId);
+
+    const workspaceReady =
+      Boolean(existingBlueprint) &&
+      existingSidebar.length > 0 &&
+      existingWidgets.length > 0;
+
+    if (workspaceReady) {
       if (project.status === "GENERATING") {
         await projectRepository.updateStatus(projectId, "ACTIVE");
       }
@@ -63,7 +72,7 @@ export class BlueprintService {
         project.goal;
 
       const provider = getAIProvider();
-      const generated = await provider.generateObject({
+      const raw = await provider.generateObject({
         system: buildBlueprintSystemPrompt(),
         prompt: buildBlueprintUserPrompt({
           title: project.title,
@@ -75,52 +84,62 @@ export class BlueprintService {
             answer: a.answer,
           })),
         }),
-        schema: blueprintGenerationSchema,
+        schema: blueprintAiSchema,
       });
+      const generated = normalizeBlueprintResponse(raw);
 
-      await blueprintRepository.createWithStages({
-        projectId,
-        title: generated.blueprint.title,
-        durationWeeks: generated.blueprint.durationWeeks,
-        dailyCommitment: generated.blueprint.dailyCommitment,
-        methodology: generated.blueprint.methodology,
-        generatedBy: process.env.GOOGLE_GENERATIVE_AI_MODEL ?? DEFAULT_GEMINI_MODEL,
-        metadata: {
-          projectSummary: generated.project.summary,
-          recommendedResources: generated.recommendedResources ?? [],
-        },
-        stages: generated.milestones.map((m) => ({
-          title: m.title,
-          description: m.description,
-          order: m.order,
-        })),
-      });
-
-      await sidebarRepository.replaceForProject(
-        projectId,
-        generated.sidebar.map((item) => ({
+      if (!existingBlueprint) {
+        await blueprintRepository.createWithStages({
           projectId,
-          label: item.label,
-          icon: item.icon,
-          route: item.route,
-          order: item.order,
-          visible: item.visible,
-        })),
-      );
+          title: generated.blueprint.title,
+          durationWeeks: generated.blueprint.durationWeeks,
+          dailyCommitment: generated.blueprint.dailyCommitment,
+          methodology: generated.blueprint.methodology,
+          generatedBy: process.env.GOOGLE_GENERATIVE_AI_MODEL ?? DEFAULT_GEMINI_MODEL,
+          metadata: {
+            projectSummary: generated.project.summary,
+            recommendedResources: generated.recommendedResources ?? [],
+          },
+          stages: generated.milestones.map((m) => ({
+            title: m.title,
+            description: m.description,
+            order: m.order,
+          })),
+        });
+      }
 
-      await dashboardWidgetRepository.replaceForProject(
-        projectId,
-        generated.widgets.map((widget) => ({
+      if (existingSidebar.length === 0) {
+        await sidebarRepository.replaceForProject(
           projectId,
-          type: widget.type,
-          config: widget.config as Prisma.InputJsonValue,
-          order: widget.order,
-        })),
-      );
+          generated.sidebar.map((item) => ({
+            projectId,
+            label: item.label,
+            icon: item.icon,
+            route: item.route,
+            order: item.order,
+            visible: item.visible,
+            sectionKey: item.sectionKey,
+            description: item.description,
+            config: item.config as Prisma.InputJsonValue | null,
+          })),
+        );
+      }
+
+      if (existingWidgets.length === 0) {
+        await dashboardWidgetRepository.replaceForProject(
+          projectId,
+          generated.widgets.map((widget) => ({
+            projectId,
+            type: widget.type,
+            config: widget.config as Prisma.InputJsonValue,
+            order: widget.order,
+          })),
+        );
+      }
 
       await projectRepository.updateStatus(projectId, "ACTIVE");
 
-      return { created: true };
+      return { created: !existingBlueprint };
     } catch (error) {
       throw toUserFacingAIError(error);
     } finally {

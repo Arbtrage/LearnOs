@@ -1,9 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { ProgressLoader } from "@/components/common/ProgressLoader";
 import { Button } from "@/components/ui/button";
 import { OnboardingAIError } from "@/features/onboarding/OnboardingAIError";
+
+const GENERATING_MESSAGES = [
+  "Analyzing your interview answers...",
+  "Designing your learning blueprint...",
+  "Building your sidebar and dashboard...",
+  "Almost ready...",
+];
 
 type WorkspaceGeneratingScreenProps = {
   projectId: string;
@@ -19,7 +26,6 @@ export function WorkspaceGeneratingScreen({
   onReady,
 }: WorkspaceGeneratingScreenProps) {
   const [error, setError] = useState<string | null>(null);
-  const [statusText, setStatusText] = useState("Analyzing your interview answers...");
   const triggered = useRef(false);
 
   const poll = useCallback(async () => {
@@ -43,7 +49,6 @@ export function WorkspaceGeneratingScreen({
         const data = (await res.json()) as { error?: string };
         throw new Error(data.error ?? "Generation failed");
       }
-      setStatusText("Building your sidebar, dashboard, and learning roadmap...");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed");
     }
@@ -80,29 +85,14 @@ export function WorkspaceGeneratingScreen({
   }
 
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 p-6 text-center">
-      <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
-        <Sparkles className="size-8 text-primary" aria-hidden="true" />
-      </div>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-6 text-center">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold">Building your learning workspace</h1>
         <p className="text-muted-foreground">
           Setting up <span className="font-medium text-foreground">{projectTitle}</span>
         </p>
       </div>
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-        {statusText}
-      </div>
-      <div className="grid w-full max-w-lg gap-3 sm:grid-cols-3">
-        {["Blueprint", "Sidebar", "Dashboard"].map((label) => (
-          <div
-            key={label}
-            className="h-20 animate-pulse rounded-lg border border-border bg-muted/40"
-            aria-hidden="true"
-          />
-        ))}
-      </div>
+      <ProgressLoader messages={GENERATING_MESSAGES} className="py-6" />
     </div>
   );
 }

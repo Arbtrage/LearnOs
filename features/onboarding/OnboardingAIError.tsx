@@ -24,9 +24,13 @@ export function OnboardingAIError({
           <AlertCircle className="size-5" aria-hidden="true" />
         </div>
         <div className="space-y-1">
-          <CardTitle className="text-lg">Could not start AI onboarding</CardTitle>
+          <CardTitle className="text-lg">
+            {isQuota ? "Could not reach Gemini" : "Something went wrong"}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">
-            We couldn&apos;t reach Gemini for {projectTitle}.
+            {isQuota
+              ? `We couldn't reach Gemini for ${projectTitle}.`
+              : `We hit a problem while setting up ${projectTitle}.`}
           </p>
         </div>
       </CardHeader>

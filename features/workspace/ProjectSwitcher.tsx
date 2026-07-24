@@ -3,8 +3,18 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, LayoutGrid, Plus } from "lucide-react";
+import { HourglassLoader } from "@/components/common/HourglassLoader";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { ProjectIconDisplay } from "@/features/projects/create/ProjectIconDisplay";
 import { cn } from "@/lib/utils";
 
@@ -20,13 +30,41 @@ type ProjectOption = {
 type ProjectSwitcherProps = {
   currentSlug: string;
   currentTitle: string;
+  currentIcon?: string | null;
+  currentAccentColor?: string | null;
+  currentStatus?: string;
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Draft",
+  ONBOARDING: "Onboarding",
+  GENERATING: "Generating",
+  ACTIVE: "Active",
+  ARCHIVED: "Archived",
+};
+
+function statusDotClass(status: string) {
+  switch (status) {
+    case "ACTIVE":
+      return "bg-emerald-500";
+    case "ONBOARDING":
+      return "bg-amber-500";
+    case "GENERATING":
+      return "bg-primary animate-pulse";
+    default:
+      return "bg-muted-foreground/50";
+  }
+}
 
 export function ProjectSwitcher({
   currentSlug,
   currentTitle,
+  currentIcon,
+  currentAccentColor,
+  currentStatus = "ACTIVE",
 }: ProjectSwitcherProps) {
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -39,56 +77,63 @@ export function ProjectSwitcher({
   });
 
   const projects = data ?? [];
+  const filtered = projects.filter((p) =>
+    p.title.toLowerCase().includes(query.toLowerCase()),
+  );
 
   return (
-    <div className="relative">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-2 font-medium"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-      >
-        <span className="max-w-[180px] truncate">{currentTitle}</span>
-        {isLoading ? (
-          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <ChevronsUpDown className="size-4 opacity-50" aria-hidden="true" />
-        )}
-      </Button>
-
-      {open ? (
-        <>
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default"
-            aria-label="Close project menu"
-            onClick={() => setOpen(false)}
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 max-w-[240px] gap-2 px-2 font-medium"
+          aria-label="Switch project"
+        >
+          <ProjectIconDisplay
+            icon={currentIcon}
+            color={currentAccentColor}
+            size="sm"
           />
-          <ul
-            role="listbox"
-            className="absolute left-0 top-full z-50 mt-1 min-w-[240px] rounded-lg border border-border bg-popover p-1 shadow-lg"
-          >
-            {projects.map((project) => {
+          <span className="min-w-0 truncate">{currentTitle}</span>
+          <span
+            className={cn("size-1.5 shrink-0 rounded-full", statusDotClass(currentStatus))}
+            aria-hidden="true"
+          />
+          {isLoading ? (
+            <HourglassLoader size="sm" />
+          ) : (
+            <ChevronsUpDown className="size-3.5 shrink-0 opacity-40" aria-hidden="true" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-80 p-0">
+        <div className="border-b border-border p-2">
+          <Input
+            placeholder="Search projects..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-8"
+          />
+        </div>
+        <div className="max-h-64 overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+              No projects found
+            </p>
+          ) : (
+            filtered.map((project) => {
               const href =
                 project.status === "ONBOARDING"
                   ? `/projects/${project.slug}/onboarding`
                   : `/projects/${project.slug}`;
 
               return (
-                <li
-                  key={project.id}
-                  role="option"
-                  aria-selected={project.slug === currentSlug}
-                >
+                <DropdownMenuItem key={project.id} asChild>
                   <Link
                     href={href}
                     onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted",
-                      project.slug === currentSlug && "bg-muted",
-                    )}
+                    className="flex cursor-pointer items-center gap-2"
                   >
                     <ProjectIconDisplay
                       icon={project.icon}
@@ -96,19 +141,35 @@ export function ProjectSwitcher({
                       size="sm"
                     />
                     <span className="min-w-0 flex-1 truncate">{project.title}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {STATUS_LABELS[project.status] ?? project.status}
+                    </span>
                     {project.slug === currentSlug ? (
-                      <Check
-                        className="size-4 shrink-0 text-primary"
-                        aria-hidden="true"
-                      />
+                      <Check className="size-4 shrink-0 text-primary" />
                     ) : null}
                   </Link>
-                </li>
+                </DropdownMenuItem>
               );
-            })}
-          </ul>
-        </>
-      ) : null}
-    </div>
+            })
+          )}
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="sr-only">Actions</DropdownMenuLabel>
+        <div className="p-1">
+          <DropdownMenuItem asChild>
+            <Link href="/projects/new" className="cursor-pointer gap-2">
+              <Plus className="size-4" />
+              New project
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard" className="cursor-pointer gap-2">
+              <LayoutGrid className="size-4" />
+              All projects
+            </Link>
+          </DropdownMenuItem>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

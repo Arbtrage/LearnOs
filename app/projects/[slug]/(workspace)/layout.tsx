@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
-import { LAST_PROJECT_COOKIE } from "@/lib/cookies/last-project";
+import { SetLastProjectCookie } from "@/features/workspace/SetLastProjectCookie";
 import { WorkspaceLayout } from "@/features/workspace/WorkspaceLayout";
 import { WorkspaceService } from "@/server/services/workspace.service";
 
@@ -26,16 +25,12 @@ export default async function ProjectWorkspaceLayout({
     redirect(`/projects/${slug}/onboarding`);
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(LAST_PROJECT_COOKIE, slug, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-    sameSite: "lax",
-  });
-
   return (
-    <WorkspaceLayout workspace={workspace} userName={session.user.name}>
-      {children}
-    </WorkspaceLayout>
+    <>
+      <SetLastProjectCookie slug={slug} />
+      <WorkspaceLayout workspace={workspace} user={session.user}>
+        {children}
+      </WorkspaceLayout>
+    </>
   );
 }

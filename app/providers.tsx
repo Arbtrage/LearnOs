@@ -2,7 +2,8 @@
 
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { NavigationLoader } from "@/components/common/NavigationLoader";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -24,6 +25,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem
         disableTransitionOnChange
       >
+        <Suspense fallback={null}>
+          <NavigationLoader />
+        </Suspense>
         {children}
       </NextThemesProvider>
     </QueryClientProvider>

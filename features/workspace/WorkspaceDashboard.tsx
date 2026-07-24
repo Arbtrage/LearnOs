@@ -47,14 +47,14 @@ export function WorkspaceDashboard({ projectId }: WorkspaceDashboardProps) {
   const widgets = [...data.widgets].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">Overview</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">
           Your learning workspace at a glance
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {widgets.map((widget) => (
           <DashboardCard
             key={widget.id}

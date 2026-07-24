@@ -1,8 +1,9 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { convertToModelMessages, generateObject, streamText } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import type { z } from "zod";
+import { generateStructured } from "@/lib/ai/generate-structured";
 import { getGeminiModelCandidates } from "@/lib/ai/config";
-import { AIProviderError, isQuotaOrRateLimitError } from "@/lib/ai/errors";
+import { AIProviderError } from "@/lib/ai/errors";
 import type {
   AIProvider,
   GenerateObjectParams,
@@ -21,36 +22,14 @@ export class GeminiProvider implements AIProvider {
   async generateObject<T extends z.ZodType>(
     params: GenerateObjectParams<T>,
   ): Promise<z.infer<T>> {
-    const models = getGeminiModelCandidates();
-    let lastQuotaError: unknown;
-
-    for (const modelId of models) {
-      try {
-        const { object } = await generateObject({
-          model: google(modelId),
-          system: params.system,
-          prompt: params.prompt,
-          schema: params.schema,
-          maxRetries: 0,
-        });
-
-        return object as z.infer<T>;
-      } catch (error) {
-        if (isQuotaOrRateLimitError(error)) {
-          lastQuotaError = error;
-          continue;
-        }
-
-        throw toAIProviderError(error);
-      }
+    try {
+      return await generateStructured(params);
+    } catch (error) {
+      if (error instanceof AIProviderError) throw error;
+      throw new AIProviderError(
+        error instanceof Error ? error.message : "Gemini request failed",
+      );
     }
-
-    void lastQuotaError;
-
-    throw new AIProviderError(
-      `All Gemini models exhausted quota (tried: ${models.join(", ")}).`,
-      "quota_exceeded",
-    );
   }
 
   streamText(params: StreamTextParams): Promise<ReturnType<typeof streamText>> {
@@ -71,16 +50,4 @@ export function getAIProvider(): AIProvider {
     provider = new GeminiProvider();
   }
   return provider;
-}
-
-function toAIProviderError(error: unknown): AIProviderError {
-  if (error instanceof AIProviderError) {
-    return error;
-  }
-
-  if (error instanceof Error) {
-    return new AIProviderError(error.message);
-  }
-
-  return new AIProviderError("Gemini request failed");
 }
