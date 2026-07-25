@@ -26,6 +26,14 @@ export const projectRepository = {
     return prisma.learningProject.findUnique({ where: { id } });
   },
 
+  async listActiveIds(): Promise<string[]> {
+    const rows = await prisma.learningProject.findMany({
+      where: { status: { not: "ARCHIVED" } },
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  },
+
   async listByUserId(
     userId: string,
     options?: { includeArchived?: boolean },

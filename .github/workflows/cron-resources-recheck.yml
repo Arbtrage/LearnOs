@@ -1,0 +1,30 @@
+name: Cron — resource link recheck
+
+on:
+  schedule:
+    # Weekly — Sundays 03:00 UTC
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-resources-recheck
+  cancel-in-progress: false
+
+jobs:
+  recheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Recheck verified links for all projects
+        env:
+          APP_URL: ${{ vars.LEARNOS_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Set repository variable LEARNOS_APP_URL and secret CRON_SECRET."
+            exit 1
+          fi
+          curl -sf -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            "${APP_URL%/}/api/cron/resources/recheck-all"

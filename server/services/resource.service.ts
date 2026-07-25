@@ -5,6 +5,7 @@ import {
   buildCandidateMap,
   joinRankedResources,
 } from "@/lib/resources/ingest-candidates";
+import { projectRepository } from "@/server/repositories/project.repository";
 import { resourceProgressRepository } from "@/server/repositories/resource-progress.repository";
 import { resourceRepository } from "@/server/repositories/resource.repository";
 import { ResourceVerificationService } from "@/server/services/resource-verification.service";
@@ -346,5 +347,19 @@ export class ResourceService {
     }
 
     return { checked: resources.length, stale };
+  }
+
+  static async recheckAllProjects() {
+    const projectIds = await projectRepository.listActiveIds();
+    let checked = 0;
+    let stale = 0;
+
+    for (const projectId of projectIds) {
+      const result = await this.recheckProject(projectId);
+      checked += result.checked;
+      stale += result.stale;
+    }
+
+    return { projects: projectIds.length, checked, stale };
   }
 }

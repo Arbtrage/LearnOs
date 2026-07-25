@@ -1,0 +1,29 @@
+name: Cron — notifications
+
+on:
+  schedule:
+    # Hourly (UTC). Replaces Vercel cron — Hobby allows at most once/day.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-notifications
+  cancel-in-progress: false
+
+jobs:
+  notifications:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger notification cron
+        env:
+          APP_URL: ${{ vars.LEARNOS_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Set repository variable LEARNOS_APP_URL and secret CRON_SECRET."
+            exit 1
+          fi
+          curl -sf -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/notifications"
