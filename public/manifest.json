@@ -1,0 +1,17 @@
+{
+  "name": "LearnOS",
+  "short_name": "LearnOS",
+  "description": "AI-powered learning operating system",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/file.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

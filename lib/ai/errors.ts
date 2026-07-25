@@ -43,7 +43,7 @@ export function toUserFacingAIError(error: unknown): AIProviderError {
 
   if (isQuotaOrRateLimitError(error)) {
     return new AIProviderError(
-      "Gemini API quota exceeded. Set GOOGLE_GENERATIVE_AI_MODEL to gemini-2.5-flash (or enable billing in Google AI Studio), then retry.",
+      "Gemini API quota exceeded. Set GOOGLE_GENERATIVE_AI_MODEL to gemini-3.5-flash-lite or gemini-3.1-flash-lite (falls back to gemini-2.5-flash), or enable billing in Google AI Studio, then retry.",
       "quota_exceeded",
     );
   }

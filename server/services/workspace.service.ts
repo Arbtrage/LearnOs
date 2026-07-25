@@ -47,7 +47,7 @@ export class WorkspaceService {
         description: item.description,
       })),
       isReady:
-        project.status === "ACTIVE" &&
+        project.status !== "GENERATING" &&
         blueprint !== null &&
         sidebar.length > 0,
     };

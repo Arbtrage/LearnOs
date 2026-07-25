@@ -32,8 +32,15 @@ async function uniqueSlug(userId: string, base: string): Promise<string> {
 }
 
 export class ProjectService {
-  static async listByUserId(userId: string): Promise<LearningProject[]> {
-    return projectRepository.listByUserId(userId);
+  static async listByUserId(
+    userId: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<LearningProject[]> {
+    return projectRepository.listByUserId(userId, options);
+  }
+
+  static async listAllByUserId(userId: string): Promise<LearningProject[]> {
+    return projectRepository.listByUserId(userId, { includeArchived: true });
   }
 
   static async getBySlug(
@@ -76,5 +83,35 @@ export class ProjectService {
       return null;
     }
     return project;
+  }
+
+  static async archive(userId: string, projectId: string): Promise<LearningProject> {
+    const project = await this.getOwnedById(userId, projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    if (project.status === "ARCHIVED") {
+      return project;
+    }
+    return projectRepository.updateStatus(projectId, "ARCHIVED");
+  }
+
+  static async unarchive(userId: string, projectId: string): Promise<LearningProject> {
+    const project = await this.getOwnedById(userId, projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    if (project.status !== "ARCHIVED") {
+      return project;
+    }
+    return projectRepository.updateStatus(projectId, "ACTIVE");
+  }
+
+  static async delete(userId: string, projectId: string): Promise<void> {
+    const project = await this.getOwnedById(userId, projectId);
+    if (!project) {
+      throw new Error("Project not found");
+    }
+    await projectRepository.delete(projectId);
   }
 }

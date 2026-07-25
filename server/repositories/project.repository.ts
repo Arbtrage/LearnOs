@@ -26,11 +26,23 @@ export const projectRepository = {
     return prisma.learningProject.findUnique({ where: { id } });
   },
 
-  async listByUserId(userId: string): Promise<LearningProject[]> {
+  async listByUserId(
+    userId: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<LearningProject[]> {
     return prisma.learningProject.findMany({
-      where: { userId },
+      where: {
+        userId,
+        ...(options?.includeArchived
+          ? {}
+          : { status: { not: "ARCHIVED" } }),
+      },
       orderBy: { updatedAt: "desc" },
     });
+  },
+
+  async delete(id: string): Promise<void> {
+    await prisma.learningProject.delete({ where: { id } });
   },
 
   async slugExists(userId: string, slug: string): Promise<boolean> {
@@ -51,6 +63,22 @@ export const projectRepository = {
     return prisma.learningProject.update({
       where: { id },
       data: { status },
+    });
+  },
+
+  async updateRoadmapStatus(
+    id: string,
+    roadmapStatus: "PENDING" | "READY" | "FAILED",
+    suggestedTopicOrder?: string[],
+  ): Promise<LearningProject> {
+    return prisma.learningProject.update({
+      where: { id },
+      data: {
+        roadmapStatus,
+        ...(suggestedTopicOrder !== undefined
+          ? { suggestedTopicOrder }
+          : {}),
+      },
     });
   },
 };

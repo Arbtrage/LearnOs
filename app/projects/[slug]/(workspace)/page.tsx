@@ -16,5 +16,5 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
     notFound();
   }
 
-  return <WorkspaceDashboard projectId={workspace.project.id} />;
+  return <WorkspaceDashboard projectId={workspace.project.id} projectTitle={workspace.project.title} />;
 }

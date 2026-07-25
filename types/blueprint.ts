@@ -8,6 +8,7 @@ export const SIDEBAR_ROUTES = [
   "practice",
   "revision",
   "notes",
+  "exam",
   "resources",
   "analytics",
   "mentor",
@@ -167,6 +168,8 @@ export type DashboardData = {
     upcomingMilestone: string;
     studyStreak: number;
     revisionDue: number;
+    readinessScore?: number;
+    healthSparkline?: number[];
   };
 };
 

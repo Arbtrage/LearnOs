@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { LandingPage } from "@/features/marketing/LandingPage";
 import { getOptionalSession } from "@/lib/auth/session";
 
 export default async function HomePage() {
@@ -6,5 +7,5 @@ export default async function HomePage() {
   if (session?.user?.id) {
     redirect("/dashboard");
   }
-  redirect("/login");
+  return <LandingPage />;
 }

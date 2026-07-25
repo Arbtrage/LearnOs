@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ProjectIconDisplay } from "@/features/projects/create/ProjectIconDisplay";
+import { ProjectActionsMenu } from "@/features/projects/ProjectActionsMenu";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -26,11 +29,13 @@ const STATUS_LABELS: Record<string, string> = {
 function statusPillClass(status: string) {
   switch (status) {
     case "ACTIVE":
-      return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
+      return "bg-success/10 text-success";
     case "ONBOARDING":
-      return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
+      return "bg-warning/10 text-warning";
     case "GENERATING":
       return "bg-primary/10 text-primary";
+    case "ARCHIVED":
+      return "bg-muted text-muted-foreground";
     default:
       return "bg-muted text-muted-foreground";
   }
@@ -54,6 +59,7 @@ function formatRelativeTime(date: Date) {
 }
 
 export function ProjectCard({
+  id,
   slug,
   title,
   goal,
@@ -65,15 +71,28 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const href = projectHref(status, slug);
   const accent = accentColor ?? "#6366f1";
+  const isArchived = status === "ARCHIVED";
 
   return (
-    <Link href={href} className="group block h-full">
-      <Card
-        className="h-full transition-all hover:border-primary/30 hover:shadow-sm"
-        style={{ borderTopWidth: 3, borderTopColor: accent }}
-      >
+    <Card
+      className={cn(
+        "relative h-full transition-all hover:border-primary/30 hover:shadow-sm",
+        isArchived && "opacity-75",
+      )}
+      style={{ borderTopWidth: 3, borderTopColor: accent }}
+    >
+      <div className="absolute right-2 top-2 z-10">
+        <ProjectActionsMenu
+          projectId={id}
+          slug={slug}
+          title={title}
+          status={status}
+        />
+      </div>
+
+      <Link href={href} className="group block h-full">
         <CardContent className="flex h-full flex-col gap-4 pt-1">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 pr-8">
             <ProjectIconDisplay icon={icon} color={accentColor} size="sm" />
             <span
               className={cn(
@@ -101,7 +120,7 @@ export function ProjectCard({
             <span className="shrink-0">{formatRelativeTime(updatedAt)}</span>
           </div>
         </CardContent>
-      </Card>
-    </Link>
+      </Link>
+    </Card>
   );
 }

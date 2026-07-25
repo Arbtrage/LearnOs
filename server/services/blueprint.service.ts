@@ -12,6 +12,8 @@ import { interviewAnswerRepository } from "@/server/repositories/interview-answe
 import { projectRepository } from "@/server/repositories/project.repository";
 import { sidebarRepository } from "@/server/repositories/sidebar.repository";
 import { blueprintAiSchema } from "@/types/blueprint";
+import { topicRepository } from "@/server/repositories/topic.repository";
+import { RoadmapService } from "@/server/services/roadmap.service";
 
 const inFlightGenerations = new Set<string>();
 
@@ -30,13 +32,30 @@ export class BlueprintService {
     const existingSidebar = await sidebarRepository.listByProjectId(projectId);
     const existingWidgets = await dashboardWidgetRepository.listByProjectId(projectId);
 
+    const existingTopicCount = await topicRepository.countByProjectId(projectId);
+
     const workspaceReady =
       Boolean(existingBlueprint) &&
       existingSidebar.length > 0 &&
-      existingWidgets.length > 0;
+      existingWidgets.length > 0 &&
+      (existingTopicCount > 0 || project.roadmapStatus === "READY");
 
     if (workspaceReady) {
       if (project.status === "GENERATING") {
+        await projectRepository.updateStatus(projectId, "ACTIVE");
+      }
+      return { created: false };
+    }
+
+    if (
+      Boolean(existingBlueprint) &&
+      existingSidebar.length > 0 &&
+      existingWidgets.length > 0 &&
+      project.roadmapStatus !== "READY"
+    ) {
+      await RoadmapService.generate(userId, projectId);
+      const refreshed = await projectRepository.findById(projectId);
+      if (refreshed?.roadmapStatus === "READY") {
         await projectRepository.updateStatus(projectId, "ACTIVE");
       }
       return { created: false };
@@ -127,7 +146,12 @@ export class BlueprintService {
         );
       }
 
-      await projectRepository.updateStatus(projectId, "ACTIVE");
+      await RoadmapService.generate(userId, projectId);
+
+      const refreshed = await projectRepository.findById(projectId);
+      if (refreshed?.roadmapStatus === "READY") {
+        await projectRepository.updateStatus(projectId, "ACTIVE");
+      }
 
       return { created: !existingBlueprint };
     } catch (error) {

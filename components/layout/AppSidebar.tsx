@@ -3,7 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AppLogo } from "@/components/common/AppLogo";
+import { Flame } from "lucide-react";
+import { BrandMark } from "@/components/common/BrandMark";
 import { SidebarSageLink } from "@/components/layout/SidebarSageLink";
 import { SidebarUserFooter } from "@/components/layout/SidebarUserFooter";
 import type { UserMenuUser } from "@/components/common/UserMenu";
@@ -27,6 +28,7 @@ type AppSidebarProps = {
   slug: string;
   items?: SidebarItemData[];
   user: UserMenuUser;
+  studyStreak?: number;
   className?: string;
   onNavigate?: () => void;
 };
@@ -40,7 +42,7 @@ function NavLink({
 }: {
   href: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   isActive: boolean;
   onNavigate?: () => void;
 }) {
@@ -51,11 +53,11 @@ function NavLink({
       className={cn(
         shell.navItem,
         isActive
-          ? "bg-muted/60 text-foreground before:absolute before:inset-y-1 before:left-0 before:w-0.5 before:rounded-full before:bg-primary"
-          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          ? shell.navItemActive
+          : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
+      <Icon className="size-4 shrink-0" strokeWidth={1.8} aria-hidden="true" />
       <span className="truncate">{label}</span>
     </Link>
   );
@@ -65,6 +67,7 @@ export function AppSidebar({
   slug,
   items = [],
   user,
+  studyStreak = 0,
   className,
   onNavigate,
 }: AppSidebarProps) {
@@ -75,16 +78,16 @@ export function AppSidebar({
     <aside
       className={cn(
         shell.sidebarWidth,
-        "flex h-full shrink-0 flex-col border-r border-border bg-sidebar",
+        "flex h-full shrink-0 flex-col border-r border-sidebar-border bg-sidebar",
         className,
       )}
     >
       <div className={shell.sidebarHeader}>
-        <AppLogo href="/dashboard" size="sm" />
+        <BrandMark />
       </div>
 
       <nav
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3"
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3"
         aria-label="Workspace"
       >
         {sections.map((section, index) => (
@@ -116,9 +119,17 @@ export function AppSidebar({
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-border/50 py-2">
+      <div className="shrink-0 border-t border-sidebar-border/50 p-3">
+        {studyStreak > 0 ? (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent/30 px-3 py-2 text-xs">
+            <Flame className="size-4 text-warning" aria-hidden="true" />
+            <span>
+              <span className="font-semibold">{studyStreak} day</span> streak
+            </span>
+          </div>
+        ) : null}
         <SidebarSageLink slug={slug} />
-        <SidebarUserFooter user={user} />
+        <SidebarUserFooter user={user} projectSlug={slug} />
       </div>
     </aside>
   );

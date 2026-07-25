@@ -1,4 +1,15 @@
-export type AIFlow = "project-suggest" | "onboarding" | "blueprint" | "mentor";
+export type AIFlow =
+  | "project-suggest"
+  | "onboarding"
+  | "blueprint"
+  | "roadmap"
+  | "topic-summary"
+  | "mentor"
+  | "resource-discovery"
+  | "topic-enrichment"
+  | "topic-lesson"
+  | "question-generation"
+  | "mock-exam-generation";
 
 export type AIUsageRecord = {
   flow: AIFlow;

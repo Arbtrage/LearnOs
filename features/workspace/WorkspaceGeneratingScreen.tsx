@@ -9,6 +9,7 @@ const GENERATING_MESSAGES = [
   "Analyzing your interview answers...",
   "Designing your learning blueprint...",
   "Building your sidebar and dashboard...",
+  "Mapping your curriculum and topics...",
   "Almost ready...",
 ];
 

@@ -11,3 +11,8 @@ export async function setLastProjectCookie(slug: string): Promise<void> {
     sameSite: "lax",
   });
 }
+
+export async function clearLastProjectCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(LAST_PROJECT_COOKIE);
+}

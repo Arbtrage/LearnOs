@@ -5,8 +5,7 @@ import {
   Loader2,
   type LucideIcon,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { dashboard } from "@/constants/design";
+import { dashboard, semantic } from "@/constants/design";
 import { cn } from "@/lib/utils";
 
 type MetricsGridProps = {
@@ -20,30 +19,29 @@ type MetricConfig = {
   label: string;
   value: number;
   icon: LucideIcon;
+  iconBox: string;
 };
 
-function MetricCard({ label, value, icon: Icon }: MetricConfig) {
+function MetricCard({ label, value, icon: Icon, iconBox }: MetricConfig) {
   return (
-    <Card className="ring-foreground/10">
-      <CardContent className="flex flex-col gap-3 pt-1">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-muted">
-          <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums">{value}</p>
-          <p className="text-sm text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <div className={dashboard.statCard}>
+      <div className={iconBox}>
+        <Icon className="size-5" aria-hidden="true" />
+      </div>
+      <div className="mt-4">
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        <p className="text-sm text-muted-foreground">{label}</p>
+      </div>
+    </div>
   );
 }
 
 export function MetricsGrid({ total, active, inProgress, ready }: MetricsGridProps) {
   const metrics: MetricConfig[] = [
-    { label: "Total projects", value: total, icon: LayoutGrid },
-    { label: "Active", value: active, icon: Activity },
-    { label: "In progress", value: inProgress, icon: Loader2 },
-    { label: "Ready", value: ready, icon: CheckCircle2 },
+    { label: "Total projects", value: total, icon: LayoutGrid, iconBox: semantic.iconBoxPrimary },
+    { label: "Active", value: active, icon: Activity, iconBox: semantic.iconBoxSuccess },
+    { label: "In progress", value: inProgress, icon: Loader2, iconBox: semantic.iconBoxWarning },
+    { label: "Ready", value: ready, icon: CheckCircle2, iconBox: semantic.iconBoxAccent },
   ];
 
   return (

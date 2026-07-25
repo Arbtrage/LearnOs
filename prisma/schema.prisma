@@ -15,18 +15,188 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum RoadmapStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+enum TopicDifficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TopicStatus {
+  LOCKED
+  AVAILABLE
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum StudyPlanStatus {
+  ACTIVE
+  COMPLETED
+}
+
+enum StudyTaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum StudyTaskPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  BOOK
+  COURSE
+  EXERCISE
+  REFERENCE
+  INTERNAL
+  OTHER
+}
+
+enum ResourceSource {
+  ONBOARDING
+  SEARCH
+  AI_RANKED
+  USER
+  IMPORT
+  CATALOG
+}
+
+enum ResourceVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  STALE
+  USER_PROVIDED
+}
+
+enum ResourceTrustTier {
+  OFFICIAL
+  TRUSTED
+  STANDARD
+  UNVERIFIED
+}
+
+enum ObjectiveSource {
+  ROADMAP
+  AI_ENRICH
+  USER
+}
+
+enum ResourceProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+enum ResourceFeedbackType {
+  BROKEN
+  IRRELEVANT
+  PAYWALL
+  OTHER
+}
+
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  SHORT_ANSWER
+  NUMERIC
+  TRUE_FALSE
+}
+
+enum QuestionSource {
+  AI
+  USER
+  IMPORT
+}
+
+enum PracticeSetSource {
+  AI
+  USER
+  SYSTEM
+}
+
+enum PracticeAttemptMode {
+  DRILL
+  TIMED
+  REVIEW_WRONG
+}
+
+enum StudyTaskType {
+  STUDY
+  PRACTICE
+  REVISION
+  MOCK
+}
+
+enum RevisionCardSource {
+  PRACTICE
+  MANUAL
+  AI
+}
+
+enum MockExamSource {
+  AI
+  USER
+  SYSTEM
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+}
+
+enum NotificationType {
+  REMINDER
+  STREAK
+  EXAM
+  MILESTONE
+  SYSTEM
+}
+
+enum CalendarProvider {
+  GOOGLE
+  ICS_ONLY
+}
+
 model User {
-  id            String            @id @default(cuid())
+  id            String           @id @default(cuid())
   name          String?
-  email         String?           @unique
+  email         String?          @unique
   emailVerified DateTime?
   image         String?
   passwordHash  String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  timezone      String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   accounts      Account[]
   sessions      Session[]
   projects      LearningProject[]
+  topicProgress TopicProgress[]
+  resourceProgress ResourceProgress[]
+  objectiveProgress UserObjectiveProgress[]
+  resourceFeedback ResourceFeedback[]
+  practiceAttempts PracticeAttempt[]
+  revisionCards    RevisionCard[]
+  notes            Note[]
+  mistakeEntries   MistakeEntry[]
+  mockExamAttempts MockExamAttempt[]
+  notificationPreferences NotificationPreference[]
+  notifications    Notification[]
+  calendarSyncs    CalendarSync[]
+  studyPlanOverrides StudyPlanOverride[]
+  analyticsSnapshots AnalyticsSnapshot[]
 }
 
 model Account {
@@ -65,22 +235,32 @@ model VerificationToken {
 }
 
 model LearningProject {
-  id            String           @id @default(cuid())
-  userId        String
-  title         String
-  slug          String
-  category      String?
-  goal          String
-  status        ProjectStatus    @default(DRAFT)
-  icon          String?
-  accentColor   String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversations AIConversation[]
-  blueprint     LearningBlueprint?
-  sidebarItems  SidebarItem[]
-  dashboardWidgets DashboardWidget[]
+  id                 String           @id @default(cuid())
+  userId             String
+  title              String
+  slug               String
+  category           String?
+  goal               String
+  status             ProjectStatus    @default(DRAFT)
+  roadmapStatus      RoadmapStatus    @default(PENDING)
+  suggestedTopicOrder Json?
+  icon               String?
+  accentColor        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations      AIConversation[]
+  blueprint          LearningBlueprint?
+  sidebarItems       SidebarItem[]
+  dashboardWidgets   DashboardWidget[]
+  topics             Topic[]
+  studyPlans         StudyPlan[]
+  schedulerEvents    SchedulerEvent[]
+  resources          Resource[]
+  notes              Note[]
+  examProfile        ExamProfile?
+  mockExams          MockExam[]
+  analyticsSnapshots AnalyticsSnapshot[]
 
   @@unique([userId, slug])
   @@index([userId])
@@ -143,9 +323,484 @@ model LearningStage {
   title       String
   description String            @db.Text
   order       Int
+  dueDate     DateTime?
+  completed   Boolean           @default(false)
+  completedAt DateTime?
   blueprint   LearningBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
+  topics      Topic[]
 
   @@index([blueprintId])
+}
+
+model Topic {
+  id             String           @id @default(cuid())
+  projectId      String
+  stageId        String?
+  title          String
+  slug           String
+  description    String           @db.Text
+  estimatedHours Float
+  difficulty     TopicDifficulty
+  sectionKey     String
+  order          Int
+  status         TopicStatus      @default(LOCKED)
+  aiSummary      String?          @db.Text
+  createdAt      DateTime         @default(now())
+  project        LearningProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage          LearningStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  parentDeps     TopicDependency[] @relation("TopicParent")
+  childDeps      TopicDependency[] @relation("TopicChild")
+  progress       TopicProgress[]
+  studyTasks     StudyTask[]
+  resources      Resource[]
+  objectives     LearningObjective[]
+  topicContents  TopicContent[]
+  questions      Question[]
+  practiceSets   PracticeSet[]
+  practiceAttempts PracticeAttempt[]
+  revisionCards  RevisionCard[]
+  notes          Note[]
+  mistakeEntries MistakeEntry[]
+
+  @@unique([projectId, slug])
+  @@index([projectId])
+  @@index([stageId])
+}
+
+model TopicDependency {
+  id            String @id @default(cuid())
+  parentTopicId String
+  childTopicId  String
+  parentTopic   Topic  @relation("TopicParent", fields: [parentTopicId], references: [id], onDelete: Cascade)
+  childTopic    Topic  @relation("TopicChild", fields: [childTopicId], references: [id], onDelete: Cascade)
+
+  @@unique([parentTopicId, childTopicId])
+  @@index([parentTopicId])
+  @@index([childTopicId])
+}
+
+model TopicProgress {
+  id           String    @id @default(cuid())
+  topicId      String
+  userId       String
+  completion   Int       @default(0)
+  confidence   Int       @default(0)
+  lastStudied  DateTime?
+  totalMinutes    Int       @default(0)
+  metadata        Json?
+  autoCompletion  Int       @default(0)
+  autoConfidence  Int       @default(0)
+  manualOverride  Boolean   @default(false)
+  topic        Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([topicId, userId])
+  @@index([userId])
+}
+
+model StudyPlan {
+  id           String          @id @default(cuid())
+  projectId    String
+  date         DateTime        @db.Date
+  totalMinutes Int
+  status       StudyPlanStatus @default(ACTIVE)
+  breakHints   Json?
+  generatedAt  DateTime        @default(now())
+  project      LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks        StudyTask[]
+  overrides    StudyPlanOverride[]
+
+  @@unique([projectId, date])
+  @@index([projectId])
+}
+
+model StudyTask {
+  id               String            @id @default(cuid())
+  studyPlanId      String
+  topicId          String?
+  title            String
+  estimatedMinutes Int
+  priority         StudyTaskPriority @default(MEDIUM)
+  order            Int
+  status           StudyTaskStatus   @default(PENDING)
+  rolledFromTaskId String?
+  resourceId       String?
+  taskType         StudyTaskType     @default(STUDY)
+  practiceSetId    String?
+  revisionCardIds  Json?
+  mockExamId       String?
+  studyPlan        StudyPlan         @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  topic            Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  resource         Resource?         @relation(fields: [resourceId], references: [id], onDelete: SetNull)
+  practiceSet      PracticeSet?      @relation(fields: [practiceSetId], references: [id], onDelete: SetNull)
+  mockExam         MockExam?         @relation(fields: [mockExamId], references: [id], onDelete: SetNull)
+  sessions         StudySession[]
+
+  @@index([studyPlanId])
+  @@index([topicId])
+  @@index([resourceId])
+  @@index([practiceSetId])
+  @@index([mockExamId])
+}
+
+model StudySession {
+  id              String    @id @default(cuid())
+  taskId          String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationMinutes Int       @default(0)
+  completed       Boolean   @default(false)
+  notes           String?   @db.Text
+  confidenceGain  Int       @default(0)
+  task            StudyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([startedAt])
+}
+
+model SchedulerEvent {
+  id        String          @id @default(cuid())
+  projectId String
+  reason    String
+  oldDate   DateTime        @db.Date
+  newDate   DateTime        @db.Date
+  createdAt DateTime        @default(now())
+  project   LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model LearningObjective {
+  id          String           @id @default(cuid())
+  topicId     String
+  title       String
+  description String           @db.Text
+  order       Int
+  source      ObjectiveSource  @default(AI_ENRICH)
+  createdAt   DateTime         @default(now())
+  topic       Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  progress    UserObjectiveProgress[]
+
+  @@index([topicId])
+}
+
+model UserObjectiveProgress {
+  id          String            @id @default(cuid())
+  objectiveId String
+  userId      String
+  completedAt DateTime          @default(now())
+  objective   LearningObjective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([objectiveId, userId])
+  @@index([userId])
+}
+
+model Resource {
+  id                 String                     @id @default(cuid())
+  projectId          String
+  topicId            String?
+  title              String
+  description        String?                    @db.Text
+  url                String?
+  type               ResourceType               @default(ARTICLE)
+  source             ResourceSource             @default(SEARCH)
+  estimatedMinutes   Int                        @default(30)
+  difficulty         TopicDifficulty            @default(INTERMEDIATE)
+  order              Int                        @default(0)
+  isRequired         Boolean                    @default(false)
+  verificationStatus ResourceVerificationStatus @default(PENDING)
+  trustTier          ResourceTrustTier          @default(UNVERIFIED)
+  lastCheckedAt      DateTime?
+  lastHttpStatus     Int?
+  checkError         String?
+  canonicalUrl       String?
+  userEdited         Boolean                    @default(false)
+  hidden             Boolean                    @default(false)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  project            LearningProject            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic              Topic?                     @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  progress           ResourceProgress[]
+  feedback           ResourceFeedback[]
+  studyTasks         StudyTask[]
+
+  @@index([projectId])
+  @@index([topicId])
+  @@index([canonicalUrl])
+}
+
+model ResourceProgress {
+  id               String                 @id @default(cuid())
+  resourceId       String
+  userId           String
+  status           ResourceProgressStatus @default(NOT_STARTED)
+  completedAt      DateTime?
+  lastOpenedAt     DateTime?
+  timeSpentMinutes Int                    @default(0)
+  resource         Resource               @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId])
+  @@index([userId])
+}
+
+model ResourceFeedback {
+  id         String               @id @default(cuid())
+  resourceId String
+  userId     String
+  type       ResourceFeedbackType
+  comment    String?              @db.Text
+  createdAt  DateTime             @default(now())
+  resource   Resource             @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId])
+  @@index([userId])
+}
+
+model TopicContent {
+  id              String   @id @default(cuid())
+  topicId         String
+  title           String
+  bodyMarkdown    String   @db.Text
+  order           Int      @default(0)
+  generatedBy     String   @default("AI")
+  sourceTopicHash String
+  createdAt       DateTime @default(now())
+  topic           Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@index([topicId])
+}
+
+model Question {
+  id            String          @id @default(cuid())
+  topicId       String
+  type          QuestionType
+  prompt        String          @db.Text
+  options       Json?
+  correctAnswer Json
+  explanation   String          @db.Text
+  difficulty    TopicDifficulty @default(INTERMEDIATE)
+  tags          String[]        @default([])
+  source        QuestionSource  @default(AI)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  topic         Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  answers       PracticeAnswer[]
+  revisionCards RevisionCard[]
+  mistakeEntries MistakeEntry[]
+  mockExamAnswers MockExamAnswer[]
+
+  @@index([topicId])
+  @@index([isActive])
+}
+
+model PracticeSet {
+  id               String            @id @default(cuid())
+  topicId          String
+  title            String
+  description      String?           @db.Text
+  questionIds      Json
+  estimatedMinutes Int               @default(15)
+  isTimed          Boolean           @default(false)
+  timeLimitMinutes Int?
+  source           PracticeSetSource @default(AI)
+  createdAt        DateTime          @default(now())
+  topic            Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  attempts         PracticeAttempt[]
+  studyTasks       StudyTask[]
+
+  @@index([topicId])
+}
+
+model PracticeAttempt {
+  id             String              @id @default(cuid())
+  userId         String
+  practiceSetId  String?
+  topicId        String
+  studyTaskId    String?
+  mode           PracticeAttemptMode @default(DRILL)
+  startedAt      DateTime            @default(now())
+  endedAt        DateTime?
+  scorePercent   Int?
+  totalQuestions Int                 @default(0)
+  correctCount   Int                 @default(0)
+  questionIds    Json                @default("[]")
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practiceSet    PracticeSet?        @relation(fields: [practiceSetId], references: [id], onDelete: SetNull)
+  topic          Topic               @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  answers        PracticeAnswer[]
+
+  @@index([userId])
+  @@index([topicId])
+  @@index([practiceSetId])
+  @@index([startedAt])
+}
+
+model PracticeAnswer {
+  id               String          @id @default(cuid())
+  attemptId        String
+  questionId       String
+  userAnswer       Json
+  isCorrect        Boolean
+  timeSpentSeconds Int             @default(0)
+  flaggedForReview Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  attempt          PracticeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  mistakeEntry     MistakeEntry?
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+}
+
+model RevisionCard {
+  id             String             @id @default(cuid())
+  userId         String
+  topicId        String
+  questionId     String?
+  front          String             @db.Text
+  back           String             @db.Text
+  easeFactor     Float              @default(2.5)
+  intervalDays   Int                @default(0)
+  repetitions    Int                @default(0)
+  nextReviewAt   DateTime           @default(now())
+  lastReviewedAt DateTime?
+  lastQuality    Int?
+  source         RevisionCardSource @default(PRACTICE)
+  createdAt      DateTime           @default(now())
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic          Topic              @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  question       Question?          @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, questionId])
+  @@index([userId, nextReviewAt])
+  @@index([topicId])
+}
+
+model Note {
+  id           String          @id @default(cuid())
+  userId       String
+  projectId    String
+  topicId      String?
+  sessionId    String?         @unique
+  title        String
+  bodyMarkdown String          @db.Text
+  tags         String[]        @default([])
+  pinned       Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project      LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic        Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([topicId])
+}
+
+model MistakeEntry {
+  id               String         @id @default(cuid())
+  userId           String
+  topicId          String
+  questionId       String
+  practiceAnswerId String         @unique
+  userAnswer       Json
+  explanation      String         @db.Text
+  resolvedAt       DateTime?
+  createdAt        DateTime       @default(now())
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic            Topic          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  question         Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  practiceAnswer   PracticeAnswer @relation(fields: [practiceAnswerId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([topicId])
+  @@index([questionId])
+}
+
+model ExamProfile {
+  id               String          @id @default(cuid())
+  projectId        String          @unique
+  examName         String
+  examDate         DateTime        @db.Date
+  syllabusMarkdown String?         @db.Text
+  totalMarks       Int?
+  passingMarks     Int?
+  cramModeEnabled  Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sections         ExamSection[]
+}
+
+model ExamSection {
+  id            String      @id @default(cuid())
+  examProfileId String
+  title         String
+  weightPercent Int
+  topicIds      String[]
+  order         Int
+  examProfile   ExamProfile @relation(fields: [examProfileId], references: [id], onDelete: Cascade)
+
+  @@index([examProfileId])
+}
+
+model MockExam {
+  id               String          @id @default(cuid())
+  projectId        String
+  title            String
+  description      String?         @db.Text
+  questionIds      Json
+  totalMarks       Int             @default(100)
+  timeLimitMinutes Int             @default(60)
+  source           MockExamSource  @default(AI)
+  createdAt        DateTime        @default(now())
+  project          LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attempts         MockExamAttempt[]
+  studyTasks       StudyTask[]
+
+  @@index([projectId])
+}
+
+model MockExamAttempt {
+  id                String           @id @default(cuid())
+  userId            String
+  mockExamId        String
+  studyTaskId       String?
+  startedAt         DateTime         @default(now())
+  endedAt           DateTime?
+  scorePercent      Int?
+  marksObtained     Int?
+  marksTotal        Int?
+  questionIds       Json             @default("[]")
+  readinessSnapshot Json?
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockExam          MockExam         @relation(fields: [mockExamId], references: [id], onDelete: Cascade)
+  answers           MockExamAnswer[]
+
+  @@index([userId])
+  @@index([mockExamId])
+  @@index([startedAt])
+}
+
+model MockExamAnswer {
+  id               String          @id @default(cuid())
+  attemptId        String
+  questionId       String
+  userAnswer       Json
+  isCorrect        Boolean
+  timeSpentSeconds Int             @default(0)
+  createdAt        DateTime        @default(now())
+  attempt          MockExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
 }
 
 model SidebarItem {
@@ -173,4 +828,81 @@ model DashboardWidget {
   project   LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+model NotificationPreference {
+  id              String              @id @default(cuid())
+  userId          String
+  channel         NotificationChannel @default(IN_APP)
+  reminderTime    String              @default("09:00")
+  timezone        String              @default("UTC")
+  dailyReminder   Boolean             @default(true)
+  streakAlerts    Boolean             @default(true)
+  examAlerts      Boolean             @default(true)
+  milestoneAlerts Boolean             @default(true)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
+
+model CalendarSync {
+  id           String           @id @default(cuid())
+  userId       String
+  projectId    String
+  provider     CalendarProvider @default(ICS_ONLY)
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  calendarId   String?
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, provider])
+  @@index([userId])
+}
+
+model StudyPlanOverride {
+  id           String    @id @default(cuid())
+  studyPlanId  String
+  userId       String
+  totalMinutes Int
+  reason       String?
+  createdAt    DateTime  @default(now())
+  studyPlan    StudyPlan @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([studyPlanId, userId])
+  @@index([userId])
+}
+
+model AnalyticsSnapshot {
+  id               String          @id @default(cuid())
+  projectId        String
+  userId           String
+  date             DateTime        @db.Date
+  readinessScore   Float?
+  totalMinutes     Int             @default(0)
+  practiceAccuracy Float?
+  streakDays       Int             @default(0)
+  topicsCompleted  Int             @default(0)
+  metadata         Json?
+  project          LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId, date])
+  @@index([projectId, userId, date])
 }

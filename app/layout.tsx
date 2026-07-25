@@ -12,6 +12,7 @@ const figtree = Figtree({
 export const metadata: Metadata = {
   title: "LearnOS",
   description: "AI-powered learning operating system",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

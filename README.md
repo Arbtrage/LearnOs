@@ -23,7 +23,7 @@ cp .env.example .env
 - `AUTH_SECRET` — run `openssl rand -base64 32`
 - `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` — Google OAuth credentials
 - `GOOGLE_GENERATIVE_AI_API_KEY` — Gemini API key
-- `GOOGLE_GENERATIVE_AI_MODEL` — optional, defaults to `gemini-2.5-flash` (do **not** use `gemini-2.0-flash` on free tier — its quota limit is 0)
+- `GOOGLE_GENERATIVE_AI_MODEL` — optional, defaults to `gemini-3.5-flash-lite` (falls back to `gemini-3.1-flash-lite`, then `gemini-2.5-flash`; do **not** use `gemini-2.0-flash` on free tier — its quota limit is 0)
 
 3. Install dependencies and migrate:
 

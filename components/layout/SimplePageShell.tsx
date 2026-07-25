@@ -32,7 +32,7 @@ export function SimplePageShell({
         className={headerClassName}
         innerClassName={innerClassName}
       />
-      <main className={cn("min-h-[calc(100vh-4rem)]", contentClassName)}>
+      <main className={cn("min-h-[calc(100vh-3.5rem)]", contentClassName)}>
         {children}
       </main>
     </div>

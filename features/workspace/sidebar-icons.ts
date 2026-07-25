@@ -24,6 +24,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   practice: Target,
   revision: RefreshCw,
   notes: PenLine,
+  exam: GraduationCap,
   resources: Library,
   analytics: BarChart3,
   mentor: MessageCircle,

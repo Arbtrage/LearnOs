@@ -4,6 +4,7 @@ import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { NavigationLoader } from "@/components/common/NavigationLoader";
+import { ServiceWorkerRegister } from "@/components/common/ServiceWorkerRegister";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -28,6 +29,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           <NavigationLoader />
         </Suspense>
+        <ServiceWorkerRegister />
         {children}
       </NextThemesProvider>
     </QueryClientProvider>

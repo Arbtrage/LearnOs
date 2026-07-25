@@ -15,7 +15,15 @@ export type CreateBlueprintInput = {
 export const blueprintRepository = {
   async findByProjectId(projectId: string): Promise<
     | (LearningBlueprint & {
-        stages: Array<{ id: string; title: string; description: string; order: number }>;
+        stages: Array<{
+          id: string;
+          title: string;
+          description: string;
+          order: number;
+          dueDate: Date | null;
+          completed: boolean;
+          completedAt: Date | null;
+        }>;
       })
     | null
   > {
@@ -43,6 +51,16 @@ export const blueprintRepository = {
           })),
         },
       },
+    });
+  },
+
+  async updateStageSchedule(
+    stageId: string,
+    data: { dueDate?: Date | null; completed?: boolean; completedAt?: Date | null },
+  ) {
+    return prisma.learningStage.update({
+      where: { id: stageId },
+      data,
     });
   },
 };

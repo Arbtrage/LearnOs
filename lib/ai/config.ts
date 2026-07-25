@@ -1,21 +1,39 @@
 import type { AIFlow } from "@/lib/ai/usage";
 
-export const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+/** Preferred defaults — higher free-tier limits than 2.5 Flash. */
+export const GEMINI_3_LITE_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+] as const;
 
-/** Models with active free-tier quotas (gemini-2.0-flash free tier is limit: 0). */
-export const GEMINI_MODEL_FALLBACKS = [
+/** Fallback when 3.x Lite models are unavailable or quota-exhausted. */
+export const GEMINI_25_MODELS = [
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-2.0-flash-lite",
+] as const;
+
+export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+
+/** Try 3.x Lite first (higher limits), then 2.5. Avoid gemini-2.0-flash (free tier limit: 0). */
+export const GEMINI_MODEL_FALLBACKS = [
+  ...GEMINI_3_LITE_MODELS,
+  ...GEMINI_25_MODELS,
 ] as const;
 
 export type GeminiModelId = (typeof GEMINI_MODEL_FALLBACKS)[number];
 
 export const FLOW_MODELS: Record<AIFlow, GeminiModelId> = {
-  "project-suggest": "gemini-2.5-flash-lite",
-  onboarding: "gemini-2.5-flash",
-  blueprint: "gemini-2.5-flash",
-  mentor: "gemini-2.5-flash",
+  "project-suggest": "gemini-3.1-flash-lite",
+  onboarding: "gemini-3.5-flash-lite",
+  blueprint: "gemini-3.5-flash-lite",
+  roadmap: "gemini-3.5-flash-lite",
+  "topic-summary": "gemini-3.1-flash-lite",
+  mentor: "gemini-3.5-flash-lite",
+  "resource-discovery": "gemini-3.5-flash-lite",
+  "topic-enrichment": "gemini-3.5-flash-lite",
+  "topic-lesson": "gemini-3.1-flash-lite",
+  "question-generation": "gemini-3.5-flash-lite",
+  "mock-exam-generation": "gemini-3.5-flash-lite",
 };
 
 export const STRUCTURED_OUTPUT_TEMPERATURE = 0.2;

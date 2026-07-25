@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, LogOut, Plus } from "lucide-react";
+import { LayoutDashboard, LogOut, Plus, Settings } from "lucide-react";
 import { signOutAction } from "@/lib/auth/actions";
 import { ThemeMenuItems } from "@/components/common/ThemeMenuItems";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -32,9 +32,10 @@ function getInitials(name?: string | null, email?: string | null) {
 
 type SidebarUserFooterProps = {
   user: UserMenuUser;
+  projectSlug: string;
 };
 
-export function SidebarUserFooter({ user }: SidebarUserFooterProps) {
+export function SidebarUserFooter({ user, projectSlug }: SidebarUserFooterProps) {
   const initials = getInitials(user.name, user.email);
   const displayName = user.name?.trim() || "Account";
 
@@ -78,6 +79,12 @@ export function SidebarUserFooter({ user }: SidebarUserFooterProps) {
           <Link href="/dashboard" className="cursor-pointer">
             <LayoutDashboard className="size-4" />
             Dashboard
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={`/projects/${projectSlug}/settings`} className="cursor-pointer">
+            <Settings className="size-4" />
+            Project settings
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

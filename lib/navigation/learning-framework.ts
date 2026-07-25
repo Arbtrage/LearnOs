@@ -65,6 +65,7 @@ export const LEARNING_FRAMEWORK_SECTIONS: FrameworkSectionDefinition[] = [
     defaultItems: [
       { route: "revision", icon: "revision", label: "Revision" },
       { route: "notes", icon: "notes", label: "Notes" },
+      { route: "exam", icon: "graduation", label: "Exam" },
     ],
   },
   {
@@ -84,6 +85,7 @@ const ROUTE_TO_SECTION: Record<SidebarRoute, LearningSectionKey> = {
   practice: "practice",
   revision: "master",
   notes: "master",
+  exam: "master",
   analytics: "reflect",
   mentor: "reflect",
 };

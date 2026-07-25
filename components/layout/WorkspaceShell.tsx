@@ -50,12 +50,7 @@ export function WorkspaceShell({
   return (
     <div className="flex h-screen flex-col bg-background">
       <div className="flex min-h-0 flex-1">
-        <AppSidebar
-          slug={slug}
-          items={sidebar}
-          user={user}
-          className="hidden lg:flex"
-        />
+        <AppSidebar slug={slug} items={sidebar} user={user} className="hidden lg:flex" />
 
         {mobileNavOpen ? (
           <>
@@ -97,7 +92,7 @@ export function WorkspaceShell({
 
           <main
             className={cn(
-              "min-h-0 flex-1 overflow-y-auto px-6 py-5",
+              "min-h-0 flex-1 overflow-y-auto px-6 py-6",
               contentClassName,
             )}
           >

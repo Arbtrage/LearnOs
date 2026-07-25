@@ -20,6 +20,19 @@ export type AuthActionState = {
   error?: string;
 };
 
+const POST_AUTH_REDIRECTS = {
+  dashboard: "/dashboard",
+  newProject: "/projects/new",
+} as const;
+
+function resolveRedirectTo(formData: FormData): string {
+  const value = formData.get("redirectTo");
+  if (value === POST_AUTH_REDIRECTS.newProject) {
+    return POST_AUTH_REDIRECTS.newProject;
+  }
+  return POST_AUTH_REDIRECTS.dashboard;
+}
+
 function isRedirectError(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -47,7 +60,7 @@ export async function loginAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: resolveRedirectTo(formData),
     });
   } catch (error) {
     if (isRedirectError(error)) {
@@ -89,7 +102,7 @@ export async function registerAction(
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
-      redirectTo: "/dashboard",
+      redirectTo: POST_AUTH_REDIRECTS.newProject,
     });
   } catch (error) {
     if (isRedirectError(error)) {
@@ -106,9 +119,9 @@ export async function registerAction(
   return { error: "Account created but sign in failed. Please log in manually." };
 }
 
-export async function googleSignInAction() {
+export async function googleSignInAction(formData: FormData) {
   try {
-    await signIn("google", { redirectTo: "/dashboard" });
+    await signIn("google", { redirectTo: resolveRedirectTo(formData) });
   } catch (error) {
     if (isRedirectError(error)) {
       throw error;

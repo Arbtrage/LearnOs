@@ -3,12 +3,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { LoadingState } from "@/components/common/LoadingState";
 import { DashboardCard } from "@/features/workspace/DashboardWidgets";
+import { dashboard } from "@/constants/design";
 
 type WorkspaceDashboardProps = {
   projectId: string;
+  projectTitle?: string;
 };
 
-export function WorkspaceDashboard({ projectId }: WorkspaceDashboardProps) {
+export function WorkspaceDashboard({ projectId, projectTitle }: WorkspaceDashboardProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard", projectId],
     queryFn: async () => {
@@ -47,14 +49,31 @@ export function WorkspaceDashboard({ projectId }: WorkspaceDashboardProps) {
   const widgets = [...data.widgets].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          Your learning workspace at a glance
-        </p>
+    <div className={`${dashboard.contentMax} space-y-6`}>
+      <div
+        className={dashboard.heroCard}
+        style={{ background: "var(--gradient-hero)" }}
+      >
+        <div className="pointer-events-none absolute inset-0 grid-pattern opacity-30" />
+        <div className="relative">
+          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            Project overview
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
+            {projectTitle ? (
+              <>
+                <span className="gradient-text">{projectTitle}</span>
+              </>
+            ) : (
+              "Overview"
+            )}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your learning workspace at a glance
+          </p>
+        </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {widgets.map((widget) => (
           <DashboardCard
             key={widget.id}

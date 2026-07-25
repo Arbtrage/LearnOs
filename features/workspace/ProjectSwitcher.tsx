@@ -46,9 +46,9 @@ const STATUS_LABELS: Record<string, string> = {
 function statusDotClass(status: string) {
   switch (status) {
     case "ACTIVE":
-      return "bg-emerald-500";
+      return "bg-success";
     case "ONBOARDING":
-      return "bg-amber-500";
+      return "bg-warning";
     case "GENERATING":
       return "bg-primary animate-pulse";
     default:
@@ -69,14 +69,16 @@ export function ProjectSwitcher({
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const res = await fetch("/api/projects");
+      const res = await fetch("/api/projects?includeArchived=1");
       if (!res.ok) throw new Error("Failed to load projects");
       const json = (await res.json()) as { projects: ProjectOption[] };
       return json.projects;
     },
   });
 
-  const projects = data ?? [];
+  const projects = (data ?? []).filter(
+    (p) => p.status !== "ARCHIVED" || p.slug === currentSlug,
+  );
   const filtered = projects.filter((p) =>
     p.title.toLowerCase().includes(query.toLowerCase()),
   );
@@ -90,11 +92,7 @@ export function ProjectSwitcher({
           className="h-8 max-w-[240px] gap-2 px-2 font-medium"
           aria-label="Switch project"
         >
-          <ProjectIconDisplay
-            icon={currentIcon}
-            color={currentAccentColor}
-            size="sm"
-          />
+          <ProjectIconDisplay icon={currentIcon} color={currentAccentColor} size="sm" />
           <span className="min-w-0 truncate">{currentTitle}</span>
           <span
             className={cn("size-1.5 shrink-0 rounded-full", statusDotClass(currentStatus))}

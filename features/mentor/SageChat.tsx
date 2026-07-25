@@ -105,7 +105,7 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
                   key={prompt}
                   type="button"
                   onClick={() => handlePrompt(prompt)}
-                  className="rounded-full border border-border bg-background/80 px-3 py-1.5 text-left text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-foreground"
+                  className="rounded-full border border-border bg-card/80 px-3 py-1.5 text-left text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-foreground"
                 >
                   {prompt}
                 </button>
@@ -118,12 +118,23 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
               <div
                 key={message.id}
                 className={cn(
-                  "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm",
-                  message.role === "user"
-                    ? "ml-auto bg-primary/10 text-foreground"
-                    : "mr-auto bg-muted text-foreground",
+                  "flex gap-2",
+                  message.role === "user" ? "justify-end" : "justify-start",
                 )}
               >
+                {message.role === "assistant" ? (
+                  <div className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-card">
+                    <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
+                  </div>
+                ) : null}
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                    message.role === "user"
+                      ? "gradient-primary text-primary-foreground"
+                      : "border border-border bg-card text-foreground/90",
+                  )}
+                >
                 {message.role === "assistant" ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -139,8 +150,23 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
                     .map((p) => (p.type === "text" ? p.text : ""))
                     .join("")
                 )}
+                </div>
               </div>
             ))}
+            {isLoading ? (
+              <div className="flex gap-2">
+                <div className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-card">
+                  <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
+                </div>
+                <div className="rounded-2xl border border-border bg-card px-4 py-3">
+                  <div className="flex gap-1">
+                    <span className="size-2 animate-typing rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
+                    <span className="size-2 animate-typing rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+                    <span className="size-2 animate-typing rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -170,7 +196,7 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
             <Button
               type="submit"
               size="icon"
-              className="shrink-0 rounded-xl"
+              className="gradient-primary shrink-0 rounded-xl text-primary-foreground"
               disabled={isLoading || !input.trim()}
             >
               <Send className="size-4" aria-hidden="true" />

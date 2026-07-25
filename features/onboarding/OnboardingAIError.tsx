@@ -41,11 +41,16 @@ export function OnboardingAIError({
         {isQuota ? (
           <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             <li>
-              Add{" "}
+              Prefer{" "}
               <code className="rounded bg-muted px-1 py-0.5 text-xs">
-                GOOGLE_GENERATIVE_AI_MODEL=gemini-2.5-flash
+                GOOGLE_GENERATIVE_AI_MODEL=gemini-3.5-flash-lite
               </code>{" "}
-              to your <code className="rounded bg-muted px-1 py-0.5 text-xs">.env</code>
+              or{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                gemini-3.1-flash-lite
+              </code>{" "}
+              (higher limits); falls back to{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">gemini-2.5-flash</code>
             </li>
             <li>
               Avoid <code className="rounded bg-muted px-1 py-0.5 text-xs">gemini-2.0-flash</code>{" "}

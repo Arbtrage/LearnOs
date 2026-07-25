@@ -1,8 +1,9 @@
 "use client";
 
-import { AppLogo } from "@/components/common/AppLogo";
+import { BrandMark } from "@/components/common/BrandMark";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserMenu, type UserMenuUser } from "@/components/common/UserMenu";
+import { dashboard, shell } from "@/constants/design";
 import { cn } from "@/lib/utils";
 
 type AppHeaderProps = {
@@ -11,7 +12,6 @@ type AppHeaderProps = {
   actions?: React.ReactNode;
   className?: string;
   innerClassName?: string;
-  compact?: boolean;
 };
 
 export function AppHeader({
@@ -20,21 +20,24 @@ export function AppHeader({
   actions,
   className,
   innerClassName,
-  compact = false,
 }: AppHeaderProps) {
   return (
-    <header className={cn("border-b border-border", className)}>
+    <header
+      className={cn(
+        "sticky top-0 z-30 border-b border-border/60 bg-background/70 backdrop-blur-xl",
+        className,
+      )}
+    >
       <div
         className={cn(
-          "mx-auto flex items-center justify-between gap-4",
-          compact
-            ? "h-14 px-4"
-            : "max-w-6xl px-4 py-4 sm:px-6 lg:px-8",
+          "mx-auto flex items-center justify-between gap-4 px-4 sm:px-6 lg:px-8",
+          shell.pageHeaderHeight,
+          dashboard.contentMax,
           innerClassName,
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
-          {left ?? <AppLogo href="/dashboard" />}
+          {left ?? <BrandMark />}
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {actions}
