@@ -1,26 +1,20 @@
-import { buildProjectSuggestPrompt } from "@/lib/ai/prompts/project-suggest";
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { getAIProvider } from "@/lib/ai/providers/gemini";
+import { runAiTask } from "@/lib/ai/kernel";
+import { projectSuggestTask } from "@/lib/ai/kernel/tasks";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import { projectIconMap } from "@/features/projects/project-icons";
-import {
-  projectSuggestSchema,
-  type ProjectSuggest,
-} from "@/types/project-suggest";
+import type { ProjectSuggest } from "@/types/project-suggest";
 
 export class ProjectSuggestService {
-  static async suggest(learningIntent: string): Promise<ProjectSuggest> {
-    const provider = getAIProvider();
-    const parts = buildProjectSuggestPrompt(learningIntent);
-
+  static async suggest(
+    learningIntent: string,
+    userId: string,
+  ): Promise<ProjectSuggest> {
     try {
-      const raw = await provider.generateObject({
-        flow: "project-suggest",
-        system: combineSystem(parts),
-        prompt: parts.user,
-        schema: projectSuggestSchema,
-      });
-
+      const raw = await runAiTask(
+        projectSuggestTask,
+        { intent: learningIntent },
+        { userId },
+      );
       return normalizeProjectSuggest(raw);
     } catch (error) {
       throw toUserFacingAIError(error);

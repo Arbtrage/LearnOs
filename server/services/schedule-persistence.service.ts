@@ -1,3 +1,4 @@
+import { captureEpisode } from "@/lib/ai/memory/capture";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { schedulerEventRepository } from "@/server/repositories/scheduler-event.repository";
 import { studyPlanRepository } from "@/server/repositories/study-plan.repository";
@@ -147,6 +148,24 @@ export class SchedulePersistenceService {
     });
 
     await studyPlanRepository.updateTotalMinutes(planId, totalMinutes);
+
+    // Budget overrides are a standing constraint, not a one-off, so the planner
+    // should remember them on future plans.
+    await captureEpisode({
+      userId,
+      agentId: "planner",
+      kind: "preference",
+      projectId,
+      messages: [
+        {
+          role: "user",
+          content: `I set today's study budget to ${totalMinutes} minutes${
+            reason ? ` because ${reason}` : ""
+          }.`,
+        },
+      ],
+      metadata: { totalMinutes },
+    });
 
     return {
       studyPlanId: planId,

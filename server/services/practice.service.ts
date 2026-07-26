@@ -1,3 +1,4 @@
+import { captureEpisode } from "@/lib/ai/memory/capture";
 import { gradeAnswer } from "@/lib/practice/grade-answer";
 import { practiceAnswerRepository } from "@/server/repositories/practice-answer.repository";
 import { practiceAttemptRepository } from "@/server/repositories/practice-attempt.repository";
@@ -227,12 +228,50 @@ export class PracticeService {
       await studyTaskRepository.updateStatus(attempt.studyTaskId, "DONE");
     }
 
+    await this.captureStruggles(userId, attempt.topic, answers, scorePercent);
+
     return {
       attemptId: completed.id,
       scorePercent,
       correctCount,
       totalQuestions,
     };
+  }
+
+  /**
+   * Wrong answers are the highest-signal memory we have: they tell every later
+   * generation which parts of a topic this learner has not internalised.
+   */
+  private static async captureStruggles(
+    userId: string,
+    topic: { id: string; title: string; projectId: string },
+    answers: Array<{
+      isCorrect: boolean;
+      question: { prompt: string; correctAnswer: unknown };
+    }>,
+    scorePercent: number,
+  ) {
+    const wrong = answers.filter((answer) => !answer.isCorrect).slice(0, 5);
+    if (wrong.length === 0) return;
+
+    await captureEpisode({
+      userId,
+      agentId: "tutor",
+      kind: "struggle",
+      projectId: topic.projectId,
+      topicId: topic.id,
+      messages: [
+        {
+          role: "user",
+          content: [
+            `I scored ${scorePercent}% practising "${topic.title}".`,
+            "I got these wrong:",
+            ...wrong.map((answer) => `- ${answer.question.prompt}`),
+          ].join("\n"),
+        },
+      ],
+      metadata: { scorePercent, wrongCount: wrong.length },
+    });
   }
 
   static async getAttempt(userId: string, attemptId: string): Promise<PracticeAttemptDto> {

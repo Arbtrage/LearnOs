@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# evals — Python artefacts and exported AiRun samples (regenerated on demand)
+__pycache__/
+*.egg-info/
+.pytest_cache/
+/evals/datasets/exported/*.jsonl

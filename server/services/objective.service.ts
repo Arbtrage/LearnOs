@@ -1,45 +1,34 @@
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import {
-  buildObjectivesPrompt,
-} from "@/lib/ai/prompts/topic-enrichment";
-import { generateStructured } from "@/lib/ai/generate-structured";
+import { runAiTask } from "@/lib/ai/kernel";
+import { topicObjectivesTask } from "@/lib/ai/kernel/tasks";
 import { objectiveRepository } from "@/server/repositories/objective.repository";
 import { topicRepository } from "@/server/repositories/topic.repository";
-import {
-  filterValidObjectives,
-  objectiveAiSchema,
-} from "@/types/resources";
 
 export class ObjectiveService {
-  static async generateForTopic(topicId: string, projectGoal: string) {
+  static async generateForTopic(
+    topicId: string,
+    projectGoal: string,
+    userId: string,
+  ) {
     const topic = await topicRepository.findById(topicId);
     if (!topic) throw new Error("Topic not found");
 
-    const parts = buildObjectivesPrompt({
-      title: topic.title,
-      slug: topic.slug,
-      description: topic.description,
-      difficulty: topic.difficulty,
-      sectionKey: topic.sectionKey,
-      stageTitle: topic.stage?.title ?? null,
-      projectGoal,
-    });
-
-    const raw = await generateStructured({
-      flow: "topic-enrichment",
-      system: combineSystem(parts),
-      prompt: parts.user,
-      schema: objectiveAiSchema,
-    });
-
-    const valid = filterValidObjectives(raw.objectives);
-    if (valid.length < 3) {
-      throw new Error("Objectives failed quality lint");
-    }
+    const objectives = await runAiTask(
+      topicObjectivesTask,
+      {
+        title: topic.title,
+        slug: topic.slug,
+        description: topic.description,
+        difficulty: topic.difficulty,
+        sectionKey: topic.sectionKey,
+        stageTitle: topic.stage?.title ?? null,
+        projectGoal,
+      },
+      { userId, projectId: topic.projectId, topicId },
+    );
 
     return objectiveRepository.replaceForTopic(
       topicId,
-      valid.map((o, index) => ({
+      objectives.map((o, index) => ({
         title: o.title,
         description: o.description,
         order: index,

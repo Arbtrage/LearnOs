@@ -3,6 +3,7 @@ import { convertToModelMessages, streamText } from "ai";
 import type { z } from "zod";
 import { getModelForFlow } from "@/lib/ai/config";
 import { generateStructured } from "@/lib/ai/generate-structured";
+import { recordAiRun } from "@/lib/ai/kernel/record";
 import { AIProviderError } from "@/lib/ai/errors";
 import { logAIUsage, usageFromResult } from "@/lib/ai/usage";
 import type {
@@ -52,12 +53,40 @@ export class GeminiProvider implements AIProvider {
       maxOutputTokens: MENTOR_MAX_OUTPUT_TOKENS,
     });
 
-    void result.usage.then((usage) => {
+    const context = params.context;
+
+    void result.usage.then(async (usage) => {
+      const tokens = usageFromResult(usage);
+      const latencyMs = Date.now() - started;
+
       logAIUsage({
         flow: params.flow,
         model: modelId,
-        durationMs: Date.now() - started,
-        ...usageFromResult(usage),
+        durationMs: latencyMs,
+        ...tokens,
+      });
+
+      if (!context) return;
+
+      const text = await Promise.resolve(result.text).catch(() => null);
+
+      await recordAiRun({
+        taskId: context.taskId,
+        flow: params.flow,
+        status: "SUCCESS",
+        userId: context.userId,
+        projectId: context.projectId,
+        topicId: context.topicId,
+        model: modelId,
+        latencyMs,
+        attempts: 1,
+        memoriesUsed: context.memoriesUsed ?? 0,
+        sampledForEval: false,
+        traceId: null,
+        input: { system, messageCount: messages.length },
+        output: text,
+        error: null,
+        ...tokens,
       });
     });
 

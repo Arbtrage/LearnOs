@@ -1,7 +1,8 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { getGeminiModelCandidates } from "@/lib/ai/config";
-import { logAIUsage, usageFromResult } from "@/lib/ai/usage";
+import { recordAiRun } from "@/lib/ai/kernel/record";
+import { usageFromResult } from "@/lib/ai/usage";
 import type { ResourceCandidate } from "@/types/resources";
 import {
   GLOBAL_TRUSTED_DOMAINS,
@@ -79,12 +80,21 @@ function dedupeCandidates(
   return out;
 }
 
-export async function discoverResourceCandidates(input: {
-  topicTitle: string;
-  topicDescription: string;
-  projectGoal: string;
-  category?: string | null;
-}): Promise<ResourceCandidate[]> {
+export type GroundedSearchContext = {
+  userId: string;
+  projectId?: string;
+  topicId?: string;
+};
+
+export async function discoverResourceCandidates(
+  input: {
+    topicTitle: string;
+    topicDescription: string;
+    projectGoal: string;
+    category?: string | null;
+  },
+  ctx?: GroundedSearchContext,
+): Promise<ResourceCandidate[]> {
   if (process.env.RESOURCE_DISCOVERY_ENABLED === "0") {
     return [];
   }
@@ -117,13 +127,6 @@ export async function discoverResourceCandidates(input: {
         maxRetries: 1,
       });
 
-      logAIUsage({
-        flow: "resource-discovery",
-        model: modelId,
-        durationMs: Date.now() - started,
-        ...usageFromResult(result.usage),
-      });
-
       const metadata = result.providerMetadata?.google as
         | { groundingMetadata?: GoogleGroundingMetadata }
         | undefined;
@@ -138,7 +141,30 @@ export async function discoverResourceCandidates(input: {
         source: "SEARCH" as const,
       }));
 
-      return dedupeCandidates(merged);
+      const candidates = dedupeCandidates(merged);
+
+      if (ctx) {
+        await recordAiRun({
+          taskId: "topic.resourceDiscovery",
+          flow: "resource-discovery",
+          status: candidates.length > 0 ? "SUCCESS" : "DEGRADED",
+          userId: ctx.userId,
+          projectId: ctx.projectId,
+          topicId: ctx.topicId,
+          model: modelId,
+          latencyMs: Date.now() - started,
+          attempts: 1,
+          memoriesUsed: 0,
+          sampledForEval: false,
+          traceId: null,
+          input: { prompt },
+          output: { candidateCount: candidates.length, candidates },
+          error: candidates.length > 0 ? null : "no candidates found",
+          ...usageFromResult(result.usage),
+        });
+      }
+
+      return candidates;
     } catch (error) {
       lastError = error;
     }

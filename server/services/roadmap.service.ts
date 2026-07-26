@@ -1,10 +1,8 @@
 import {
   computeTopicStatuses,
 } from "@/lib/curriculum/progress-engine";
-import { normalizeRoadmapResponse } from "@/lib/ai/normalize/roadmap";
-import { buildRoadmapPrompt } from "@/lib/ai/prompts/roadmap";
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { getAIProvider } from "@/lib/ai/providers/gemini";
+import { runAiTask } from "@/lib/ai/kernel";
+import { roadmapTask } from "@/lib/ai/kernel/tasks";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import { blueprintRepository } from "@/server/repositories/blueprint.repository";
 import { conversationRepository } from "@/server/repositories/conversation.repository";
@@ -13,11 +11,7 @@ import { projectRepository } from "@/server/repositories/project.repository";
 import { topicDependencyRepository } from "@/server/repositories/topic-dependency.repository";
 import { topicProgressRepository } from "@/server/repositories/topic-progress.repository";
 import { topicRepository } from "@/server/repositories/topic.repository";
-import { roadmapAiSchema } from "@/types/roadmap";
 import { RoadmapQueryService } from "@/server/services/milestone.service";
-import { TopicEnrichmentService } from "@/server/services/topic-enrichment.service";
-
-const inFlightGenerations = new Set<string>();
 
 export class RoadmapService {
   static getRoadmap = RoadmapQueryService.getRoadmap;
@@ -36,12 +30,8 @@ export class RoadmapService {
       return { created: false };
     }
 
-    if (inFlightGenerations.has(projectId)) {
-      return { created: false };
-    }
-
-    inFlightGenerations.add(projectId);
-
+    // Deduplication is enforced by the durable function's per-project
+    // concurrency key; an in-memory guard would be per-lambda and useless.
     try {
       await projectRepository.updateRoadmapStatus(projectId, "PENDING");
 
@@ -56,28 +46,23 @@ export class RoadmapService {
         ? await interviewAnswerRepository.listByConversationId(conversation.id)
         : [];
 
-      const parts = buildRoadmapPrompt({
-        title: project.title,
-        goal: project.goal,
-        durationWeeks: blueprint.durationWeeks,
-        methodology: blueprint.methodology,
-        blueprintTitle: blueprint.title,
-        stages: blueprint.stages,
-        answers: answers.map((a) => ({
-          questionKey: a.questionKey,
-          answer: a.answer,
-        })),
-      });
+      const normalized = await runAiTask(
+        roadmapTask,
+        {
+          title: project.title,
+          goal: project.goal,
+          durationWeeks: blueprint.durationWeeks,
+          methodology: blueprint.methodology,
+          blueprintTitle: blueprint.title,
+          stages: blueprint.stages,
+          answers: answers.map((a) => ({
+            questionKey: a.questionKey,
+            answer: a.answer,
+          })),
+        },
+        { userId, projectId },
+      );
 
-      const provider = getAIProvider();
-      const raw = await provider.generateObject({
-        flow: "roadmap",
-        system: combineSystem(parts),
-        prompt: parts.user,
-        schema: roadmapAiSchema,
-      });
-
-      const normalized = normalizeRoadmapResponse(raw, blueprint.durationWeeks);
       const stageByOrder = new Map(
         blueprint.stages.map((stage) => [stage.order, stage]),
       );
@@ -160,16 +145,12 @@ export class RoadmapService {
         normalized.suggestedOrder,
       );
 
-      void TopicEnrichmentService.enrichProject(userId, projectId).catch((err) => {
-        console.warn("[topic-enrichment] batch failed", err);
-      });
-
+      // Enrichment fan-out is owned by the `project-roadmap` durable function.
+      // A fire-and-forget promise here would silently die on serverless freeze.
       return { created: true };
     } catch (error) {
       await projectRepository.updateRoadmapStatus(projectId, "FAILED");
       throw toUserFacingAIError(error);
-    } finally {
-      inFlightGenerations.delete(projectId);
     }
   }
 }

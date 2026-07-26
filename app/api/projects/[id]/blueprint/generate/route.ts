@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { AIProviderError } from "@/lib/ai/errors";
-import { BlueprintService } from "@/server/services/blueprint.service";
+import { inngest } from "@/lib/jobs/client";
+import { projectBlueprintRequested } from "@/lib/jobs/events";
 import { ProjectService } from "@/server/services/project.service";
 
+/**
+ * Enqueue only. Generation runs in the `project-blueprint` durable function so
+ * the request returns immediately instead of holding a 30-90s connection open.
+ */
 export async function POST(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -20,22 +24,13 @@ export async function POST(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  try {
-    const result = await BlueprintService.generate(session.user.id, id);
-    return NextResponse.json({ success: true, ...result });
-  } catch (error) {
-    const message =
-      error instanceof AIProviderError
-        ? error.message
-        : error instanceof Error
-          ? error.message
-          : "Blueprint generation failed";
+  const { ids } = await inngest.send(
+    projectBlueprintRequested.create({
+      userId: session.user.id,
+      projectId: id,
+      enrichTopics: true,
+    }),
+  );
 
-    const status =
-      error instanceof AIProviderError && error.code === "quota_exceeded"
-        ? 429
-        : 500;
-
-    return NextResponse.json({ error: message }, { status });
-  }
+  return NextResponse.json({ enqueued: true, eventIds: ids }, { status: 202 });
 }

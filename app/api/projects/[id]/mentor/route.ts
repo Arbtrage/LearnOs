@@ -1,6 +1,9 @@
+import { after } from "next/server";
 import { type UIMessage } from "ai";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { getMemoryPort } from "@/lib/ai/memory";
+import { captureEpisode } from "@/lib/ai/memory/capture";
 import { buildMentorPrompt } from "@/lib/ai/prompts/mentor";
 import {
   historyTruncationNote,
@@ -121,6 +124,18 @@ export async function POST(
     }
   }
 
+  const latestUserText = extractLatestUserText(parsed.data.messages);
+  const memory = getMemoryPort();
+  const memories = memory.enabled
+    ? await memory.search({
+        query: latestUserText || project.goal,
+        userId: session.user.id,
+        agentId: "mentor",
+        projectId: project.id,
+        topK: 6,
+      })
+    : [];
+
   const parts = buildMentorPrompt({
     title: project.title,
     goal: project.goal,
@@ -135,6 +150,7 @@ export async function POST(
     focusTopicDescription,
     focusResourceTitle,
     incompleteObjectives,
+    memories,
   });
 
   const { messages, truncated } = truncateChatHistory(parsed.data.messages);
@@ -144,7 +160,49 @@ export async function POST(
     system: combineSystem(parts),
     messages,
     historyNote: historyTruncationNote(truncated),
+    context: {
+      taskId: "project.mentor",
+      userId: session.user.id,
+      projectId: project.id,
+      topicId: focusTopicId,
+    },
+  });
+
+  // The reply only exists once the stream drains, so capture runs after the
+  // response rather than blocking the first token.
+  after(async () => {
+    const reply = await Promise.resolve(result.text).catch(() => "");
+    if (!latestUserText || !reply) return;
+
+    await captureEpisode({
+      userId: session.user.id,
+      agentId: "mentor",
+      kind: "episodic",
+      runId: `mentor:${project.id}`,
+      projectId: project.id,
+      topicId: focusTopicId,
+      messages: [
+        { role: "user", content: latestUserText },
+        { role: "assistant", content: reply },
+      ],
+      metadata: { section: parsed.data.section },
+    });
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+/** UIMessage parts can mix text and tool output; memory only wants the text. */
+function extractLatestUserText(messages: UIMessage[]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role !== "user") continue;
+
+    return message.parts
+      .filter((part) => part.type === "text")
+      .map((part) => part.text)
+      .join("\n")
+      .trim();
+  }
+  return "";
 }

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { inngest } from "@/lib/jobs/client";
+import { projectMockExamRequested } from "@/lib/jobs/events";
+import { AssetReadinessService } from "@/server/services/asset-readiness.service";
 import { ProjectService } from "@/server/services/project.service";
 import { MockExamService } from "@/server/services/mock-exam.service";
 import { generateMockExamSchema } from "@/types/mock-exam";
@@ -40,12 +43,21 @@ export async function POST(
 
   try {
     const body = generateMockExamSchema.parse(await request.json().catch(() => ({})));
-    const mockExam = await MockExamService.generate(
-      session.user.id,
-      id,
-      body.questionCount,
+
+    await AssetReadinessService.markQueued(
+      { projectId: id, topicId: null, kind: "MOCK_EXAM" },
+      100,
     );
-    return NextResponse.json(mockExam);
+
+    const { ids } = await inngest.send(
+      projectMockExamRequested.create({
+        userId: session.user.id,
+        projectId: id,
+        questionCount: body.questionCount,
+      }),
+    );
+
+    return NextResponse.json({ enqueued: true, eventIds: ids }, { status: 202 });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to generate mock exam" },

@@ -1,6 +1,6 @@
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { buildMockExamGenerationPrompt } from "@/lib/ai/prompts/mock-exam-generation";
-import { generateStructured } from "@/lib/ai/generate-structured";
+import { runAiTask } from "@/lib/ai/kernel";
+import { mockExamTask } from "@/lib/ai/kernel/tasks";
+import { captureEpisode } from "@/lib/ai/memory/capture";
 import { gradeAnswer } from "@/lib/practice/grade-answer";
 import {
   mockExamAnswerRepository,
@@ -17,7 +17,6 @@ import { QuestionService } from "@/server/services/question.service";
 import { ExamProfileService } from "@/server/services/exam-profile.service";
 import { normalizeGeneratedQuestions } from "@/lib/practice/normalize-questions";
 import {
-  mockExamGenerationAiSchema,
   type MockExamAttemptDto,
   type MockExamDto,
   type MockExamReviewDto,
@@ -94,19 +93,16 @@ export class MockExamService {
           ];
 
     const perSection = Math.max(3, Math.ceil(questionCount / sections.length));
-    const parts = buildMockExamGenerationPrompt({
-      examName: profile?.examName ?? project.title,
-      projectGoal: project.goal,
-      sections,
-      questionsPerSection: perSection,
-    });
-
-    const raw = await generateStructured({
-      flow: "mock-exam-generation",
-      system: combineSystem(parts),
-      prompt: parts.user,
-      schema: mockExamGenerationAiSchema,
-    });
+    const raw = await runAiTask(
+      mockExamTask,
+      {
+        examName: profile?.examName ?? project.title,
+        projectGoal: project.goal,
+        sections,
+        questionsPerSection: perSection,
+      },
+      { userId, projectId },
+    );
 
     const allQuestionIds: string[] = [];
 
@@ -295,6 +291,28 @@ export class MockExamService {
 
     if (attempt.studyTaskId) {
       await studyTaskRepository.updateStatus(attempt.studyTaskId, "DONE");
+    }
+
+    const wrong = answers.filter((a) => !a.isCorrect).slice(0, 8);
+    if (wrong.length > 0) {
+      await captureEpisode({
+        userId,
+        agentId: "tutor",
+        kind: "struggle",
+        projectId: attempt.mockExam.projectId,
+        runId: `mock-exam:${attempt.mockExam.id}`,
+        messages: [
+          {
+            role: "user",
+            content: [
+              `I scored ${scorePercent}% on a mock exam.`,
+              "These are the questions I got wrong:",
+              ...wrong.map((a) => `- ${a.question.prompt}`),
+            ].join("\n"),
+          },
+        ],
+        metadata: { scorePercent, wrongCount: wrong.length },
+      });
     }
 
     const topicIds = [

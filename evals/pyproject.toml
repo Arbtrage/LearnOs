@@ -1,0 +1,20 @@
+[project]
+name = "learnos-evals"
+version = "0.1.0"
+description = "MLflow GenAI evaluation harness for LearnOS AI tasks"
+requires-python = ">=3.10"
+dependencies = [
+    "mlflow[databricks]>=3.1.0",
+    "databricks-sdk>=0.40.0",
+    "google-genai>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["learnos_evals"]

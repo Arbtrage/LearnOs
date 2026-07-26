@@ -120,6 +120,26 @@ export const studyPlanRepository = {
     });
   },
 
+  /** Drives the prewarm scheduler: what the learner is about to need. */
+  async listUpcomingTasks(projectId: string, from: Date, through: Date) {
+    return prisma.studyTask.findMany({
+      where: {
+        studyPlan: {
+          projectId,
+          date: { gte: toDateOnly(from), lte: toDateOnly(through) },
+        },
+        status: { in: ["PENDING", "IN_PROGRESS"] },
+      },
+      select: {
+        id: true,
+        topicId: true,
+        taskType: true,
+        studyPlan: { select: { date: true } },
+      },
+      orderBy: [{ studyPlan: { date: "asc" } }, { order: "asc" }],
+    });
+  },
+
   async markPlanCompleted(planId: string) {
     return prisma.studyPlan.update({
       where: { id: planId },

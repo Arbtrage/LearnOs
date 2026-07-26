@@ -9,11 +9,21 @@ export type GenerateObjectParams<T extends z.ZodType> = {
   schema: T;
 };
 
+export type StreamTextContext = {
+  taskId: string;
+  userId: string;
+  projectId?: string;
+  topicId?: string;
+  memoriesUsed?: number;
+};
+
 export type StreamTextParams = {
   flow: AIFlow;
   system: string;
   messages: UIMessage[];
   historyNote?: string;
+  /** Enables AiRun telemetry for streaming surfaces. */
+  context?: StreamTextContext;
 };
 
 export interface AIProvider {

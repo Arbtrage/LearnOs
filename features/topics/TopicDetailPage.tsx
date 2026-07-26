@@ -10,10 +10,14 @@ import {
   NavigationOverlay,
   useNavigateWithLoading,
 } from "@/components/common/PendingButton";
+import { AssetReadinessList } from "@/features/readiness/AssetReadinessBadge";
 import { TopicDetailHero } from "@/features/topics/TopicDetailHero";
 import { TopicStudyReader } from "@/features/topics/TopicStudyReader";
 import { TopicStudySidebar } from "@/features/topics/TopicStudySidebar";
+import { useAssetReadiness } from "@/hooks/use-asset-readiness";
+import { useGenerationProgress } from "@/hooks/use-generation-progress";
 import { parseApiError } from "@/lib/api/parse-error";
+import { isAssetPending } from "@/types/readiness";
 import type { ObjectiveDto, ResourceDto, TopicContentDto } from "@/types/resources";
 import type { PracticeSetDto } from "@/types/practice";
 import type { TopicDetailDto } from "@/types/roadmap";
@@ -91,8 +95,8 @@ export function TopicDetailPage({
     },
     onSuccess: () => {
       setPracticeError(null);
-      void queryClient.invalidateQueries({ queryKey: ["practice-sets", topicId] });
-      void queryClient.invalidateQueries({ queryKey: ["practice", projectId] });
+      // Generation now runs in the background; readiness polling drives the UI.
+      void queryClient.invalidateQueries({ queryKey: ["asset-readiness", projectId] });
     },
     onError: (error) => {
       setPracticeError(
@@ -176,11 +180,7 @@ export function TopicDetailPage({
       return res.json();
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["objectives", topicId] });
-      void queryClient.invalidateQueries({
-        queryKey: ["resources", projectId, topicId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["topic-content", topicId] });
+      void queryClient.invalidateQueries({ queryKey: ["asset-readiness", projectId] });
     },
   });
 
@@ -196,9 +196,64 @@ export function TopicDetailPage({
     },
   });
 
+  const readiness = useAssetReadiness({ projectId, topicId });
+  const progress = useGenerationProgress({ projectId });
+
+  // Realtime tells us the moment a step lands; the ledger stays the source of
+  // truth, so a message just triggers a refetch instead of driving state.
+  const progressSignature = progress.steps
+    .map((step) => `${step.step}:${step.state}`)
+    .join("|");
+
+  React.useEffect(() => {
+    if (!progressSignature) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["asset-readiness", projectId],
+    });
+  }, [progressSignature, queryClient, projectId]);
+
+  const readinessItems = React.useMemo(
+    () =>
+      (["LESSON", "OBJECTIVES", "RESOURCES", "QUESTIONS"] as const).map(
+        (kind) => ({ kind, state: readiness.stateFor(kind) }),
+      ),
+    [readiness],
+  );
+
+  const readinessSignature = readinessItems
+    .map((item) => `${item.kind}:${item.state}`)
+    .join("|");
+
+  // Background generation writes straight to the database, so the content
+  // queries only learn about new material when readiness flips.
+  React.useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: ["objectives", topicId] });
+    void queryClient.invalidateQueries({ queryKey: ["topic-content", topicId] });
+    void queryClient.invalidateQueries({
+      queryKey: ["resources", projectId, topicId],
+    });
+    void queryClient.invalidateQueries({ queryKey: ["practice-sets", topicId] });
+  }, [readinessSignature, queryClient, topicId, projectId]);
+
+  // Opening a topic is the strongest signal about what comes next, so warm the
+  // following topics while the learner reads this one.
+  React.useEffect(() => {
+    void fetch(`/api/topics/${topicId}/warm`, { method: "POST" }).catch(
+      () => undefined,
+    );
+  }, [topicId]);
+
+  // Enrichment is enqueued, not awaited, so bootstrap only when the ledger
+  // shows nothing is already in flight for this topic.
   React.useEffect(() => {
     if (enrichBootstrappedRef.current) return;
+    if (!readiness.isFetched) return;
     if (!objectivesQuery.isFetched || !topicContentQuery.isFetched) return;
+
+    const alreadyRunning = (["LESSON", "OBJECTIVES", "RESOURCES"] as const).some(
+      (kind) => isAssetPending(readiness.stateFor(kind)),
+    );
+    if (alreadyRunning) return;
 
     const needsEnrichment =
       (objectivesQuery.data?.length ?? 0) === 0 ||
@@ -212,6 +267,8 @@ export function TopicDetailPage({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    readiness.isFetched,
+    readiness.rows,
     objectivesQuery.isFetched,
     objectivesQuery.data,
     topicContentQuery.isFetched,
@@ -253,7 +310,9 @@ export function TopicDetailPage({
   const topic = detailQuery.data;
   const topicContent = topicContentQuery.data ?? [];
   const isGeneratingContent =
-    discoverMutation.isPending || topicContentQuery.isLoading;
+    discoverMutation.isPending ||
+    topicContentQuery.isLoading ||
+    isAssetPending(readiness.stateFor("LESSON"));
   const canMarkComplete =
     topic.status !== "LOCKED" && topic.completion < 100 && topic.status !== "COMPLETED";
 
@@ -275,6 +334,8 @@ export function TopicDetailPage({
         markingComplete={markCompleteMutation.isPending}
         onMarkComplete={handleMarkComplete}
       />
+
+      <AssetReadinessList items={readinessItems} />
 
       {practiceError ? (
         <div
@@ -320,7 +381,10 @@ export function TopicDetailPage({
           onRefreshMaterials={() => discoverMutation.mutate()}
           refreshingMaterials={discoverMutation.isPending}
           onGenerateQuestions={() => generateQuestionsMutation.mutate()}
-          generatingQuestions={generateQuestionsMutation.isPending}
+          generatingQuestions={
+            generateQuestionsMutation.isPending ||
+            isAssetPending(readiness.stateFor("QUESTIONS"))
+          }
           onStartPractice={handleStartPractice}
           startingPracticeSetId={startingPracticeSetId}
         />

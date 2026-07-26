@@ -1,7 +1,8 @@
 import { generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { getModelForFlow } from "@/lib/ai/config";
-import { logAIUsage, usageFromResult } from "@/lib/ai/usage";
+import { recordAiRun } from "@/lib/ai/kernel";
+import { usageFromResult } from "@/lib/ai/usage";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { topicRepository } from "@/server/repositories/topic.repository";
 
@@ -29,31 +30,46 @@ export class TopicSummaryService {
 
     const modelId = getModelForFlow("topic-summary");
     const started = Date.now();
+    const prompt = [
+      `Project: ${project.title}`,
+      `Goal: ${project.goal}`,
+      `Topic: ${topic.title}`,
+      `Difficulty: ${topic.difficulty}`,
+      `Description: ${topic.description}`,
+      "",
+      "Summarize what the learner should focus on, key outcomes, and how this topic fits their path.",
+    ].join("\n");
 
     const { text, usage } = await generateText({
       model: google(modelId),
       system:
         "You are LearnOS Sage. Write a concise, actionable topic summary for a learner. Use markdown. 2-4 short paragraphs max.",
-      prompt: [
-        `Project: ${project.title}`,
-        `Goal: ${project.goal}`,
-        `Topic: ${topic.title}`,
-        `Difficulty: ${topic.difficulty}`,
-        `Description: ${topic.description}`,
-        "",
-        "Summarize what the learner should focus on, key outcomes, and how this topic fits their path.",
-      ].join("\n"),
+      prompt,
       maxOutputTokens: SUMMARY_MAX_TOKENS,
     });
 
-    logAIUsage({
+    const summary = text.trim();
+
+    await recordAiRun({
+      taskId: "topic.summary",
       flow: "topic-summary",
+      status: "SUCCESS",
+      userId,
+      projectId: project.id,
+      topicId,
       model: modelId,
-      durationMs: Date.now() - started,
+      latencyMs: Date.now() - started,
+      attempts: 1,
+      memoriesUsed: 0,
+      sampledForEval: false,
+      traceId: null,
+      input: { prompt },
+      output: { summary },
+      error: null,
       ...usageFromResult(usage),
     });
 
-    const summary = text.trim();
+
     await topicRepository.updateAiSummary(topicId, summary);
     return summary;
   }

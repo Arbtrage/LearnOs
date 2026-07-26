@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { inngest } from "@/lib/jobs/client";
+import { topicEnrichRequested } from "@/lib/jobs/events";
+import { AssetReadinessService } from "@/server/services/asset-readiness.service";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
-import { TopicEnrichmentService } from "@/server/services/topic-enrichment.service";
 
 export async function POST(
   _request: Request,
@@ -24,13 +26,22 @@ export async function POST(
     return NextResponse.json({ error: "Topic not found" }, { status: 404 });
   }
 
-  try {
-    const result = await TopicEnrichmentService.enrichTopic(session.user.id, id);
-    return NextResponse.json(result);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Discovery failed" },
-      { status: 500 },
+  for (const kind of ["OBJECTIVES", "LESSON", "RESOURCES"] as const) {
+    await AssetReadinessService.markQueued(
+      { projectId: project.id, topicId: id, kind },
+      100,
     );
   }
+
+  const { ids } = await inngest.send(
+    topicEnrichRequested.create({
+      userId: session.user.id,
+      projectId: project.id,
+      topicId: id,
+      reason: "user",
+      priority: 100,
+    }),
+  );
+
+  return NextResponse.json({ enqueued: true, eventIds: ids }, { status: 202 });
 }

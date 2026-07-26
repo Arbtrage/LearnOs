@@ -1,3 +1,4 @@
+import { captureEpisode } from "@/lib/ai/memory/capture";
 import { studySessionRepository } from "@/server/repositories/study-session.repository";
 import { studyTaskRepository } from "@/server/repositories/study-task.repository";
 import { studyPlanRepository } from "@/server/repositories/study-plan.repository";
@@ -128,6 +129,30 @@ export class SessionService {
     const { NoteService } = await import("@/server/services/note.service");
     await NoteService.syncFromSessionNotes(userId, session.id);
 
+    // Self-reported confidence and session notes are the learner telling us how
+    // the material landed, which nothing else in the system captures.
+    await captureEpisode({
+      userId,
+      agentId: "tutor",
+      kind: "episodic",
+      projectId: task.studyPlan.projectId,
+      topicId: task.topicId ?? undefined,
+      runId: `session:${session.id}`,
+      messages: [
+        {
+          role: "user",
+          content: [
+            `I finished "${task.title}" after ${durationMinutes} minutes.`,
+            `Confidence afterwards: ${confidenceGain}/10.`,
+            input.notes ? `My notes: ${input.notes}` : "",
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+      ],
+      metadata: { durationMinutes, confidenceGain },
+    });
+
     return {
       taskId,
       sessionId: session.id,
@@ -149,6 +174,22 @@ export class SessionService {
       reason: input.reason ?? "user_skipped",
       oldDate: task.studyPlan.date,
       newDate: utcDateOnly(),
+    });
+
+    await captureEpisode({
+      userId,
+      agentId: "planner",
+      kind: "preference",
+      projectId: task.studyPlan.projectId,
+      topicId: task.topicId ?? undefined,
+      messages: [
+        {
+          role: "user",
+          content: `I skipped "${task.title}"${
+            input.reason ? ` because ${input.reason}` : ""
+          }.`,
+        },
+      ],
     });
 
     return { taskId, status: "SKIPPED" as const };

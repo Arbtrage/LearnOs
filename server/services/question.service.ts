@@ -1,10 +1,6 @@
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { buildQuestionGenerationPrompt } from "@/lib/ai/prompts/question-generation";
-import { generateStructured } from "@/lib/ai/generate-structured";
-import {
-  MAX_GENERATIONS_PER_DAY,
-  normalizeGeneratedQuestions,
-} from "@/lib/practice/normalize-questions";
+import { runAiTask } from "@/lib/ai/kernel";
+import { questionGenerationTask } from "@/lib/ai/kernel/tasks";
+import { MAX_GENERATIONS_PER_DAY } from "@/lib/practice/normalize-questions";
 import { gradeAnswer, toRunnerOptions } from "@/lib/practice/grade-answer";
 import { objectiveRepository } from "@/server/repositories/objective.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
@@ -12,10 +8,7 @@ import { questionRepository } from "@/server/repositories/question.repository";
 import { resourceRepository } from "@/server/repositories/resource.repository";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { practiceSetRepository } from "@/server/repositories/practice-set.repository";
-import {
-  questionGenerationAiSchema,
-  type QuestionRunnerDto,
-} from "@/types/practice";
+import type { QuestionRunnerDto } from "@/types/practice";
 import { prisma } from "@/lib/db/prisma";
 import { UserFacingError } from "@/lib/errors/user-facing";
 import type { Prisma } from "@/app/generated/prisma/client";
@@ -63,38 +56,27 @@ export class QuestionService {
     const objectives = await objectiveRepository.listByTopic(topicId, userId);
     const resources = await resourceRepository.listByTopic(topicId);
 
-    const parts = buildQuestionGenerationPrompt({
-      topicTitle: topic.title,
-      topicDescription: topic.description,
-      projectGoal: project.goal,
-      objectives: objectives.map((o) => o.title),
-      resourceTitles: resources.map((r) => r.title),
-      count,
-    });
-
-    let raw!: (typeof questionGenerationAiSchema)["_output"];
-    let valid = normalizeGeneratedQuestions([]);
-
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      raw = await generateStructured({
-        flow: "question-generation",
-        system: combineSystem(parts),
-        prompt:
-          attempt === 0
-            ? parts.user
-            : `${parts.user}\n\nPrevious attempt failed quality checks. Ensure every MCQ has 4 options with a matching optionId, TRUE_FALSE uses ids true/false, and prompts are specific (not vague).`,
-        schema: questionGenerationAiSchema,
-      });
-
-      valid = normalizeGeneratedQuestions(raw.questions);
-      if (valid.length >= 3) break;
-    }
-
-    if (valid.length < 3) {
+    let generated;
+    try {
+      generated = await runAiTask(
+        questionGenerationTask,
+        {
+          topicTitle: topic.title,
+          topicDescription: topic.description,
+          projectGoal: project.goal,
+          objectives: objectives.map((o) => o.title),
+          resourceTitles: resources.map((r) => r.title),
+          count,
+        },
+        { userId, projectId: project.id, topicId },
+      );
+    } catch {
       throw new UserFacingError(
-        `Only ${valid.length} questions passed quality checks. Try again in a moment.`,
+        "Not enough questions passed quality checks. Try again in a moment.",
       );
     }
+
+    const valid = generated.questions;
 
     const created = await prisma.$transaction(async (tx) => {
       const rows = [];
@@ -117,7 +99,7 @@ export class QuestionService {
       return rows;
     });
 
-    const indices = raw.practiceSet.orderedQuestionIndices
+    const indices = generated.practiceSet.orderedQuestionIndices
       .filter((i) => i >= 0 && i < created.length)
       .map((i) => created[i]!.id);
 
@@ -126,8 +108,8 @@ export class QuestionService {
 
     const practiceSet = await practiceSetRepository.create({
       topicId,
-      title: raw.practiceSet.title,
-      description: raw.practiceSet.description ?? null,
+      title: generated.practiceSet.title,
+      description: generated.practiceSet.description ?? null,
       questionIds,
       estimatedMinutes: Math.max(10, questionIds.length * 2),
       source: "AI",

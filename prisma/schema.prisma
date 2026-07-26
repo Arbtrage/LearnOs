@@ -15,6 +15,30 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum AiRunStatus {
+  SUCCESS
+  DEGRADED
+  FAILED
+}
+
+enum AssetKind {
+  LESSON
+  OBJECTIVES
+  RESOURCES
+  QUESTIONS
+  FLASHCARDS
+  MOCK_EXAM
+}
+
+enum AssetState {
+  MISSING
+  QUEUED
+  RUNNING
+  READY
+  FAILED
+  STALE
+}
+
 enum RoadmapStatus {
   PENDING
   READY
@@ -171,32 +195,32 @@ enum CalendarProvider {
 }
 
 model User {
-  id            String           @id @default(cuid())
-  name          String?
-  email         String?          @unique
-  emailVerified DateTime?
-  image         String?
-  passwordHash  String?
-  timezone      String?
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  projects      LearningProject[]
-  topicProgress TopicProgress[]
-  resourceProgress ResourceProgress[]
-  objectiveProgress UserObjectiveProgress[]
-  resourceFeedback ResourceFeedback[]
-  practiceAttempts PracticeAttempt[]
-  revisionCards    RevisionCard[]
-  notes            Note[]
-  mistakeEntries   MistakeEntry[]
-  mockExamAttempts MockExamAttempt[]
+  id                      String                   @id @default(cuid())
+  name                    String?
+  email                   String?                  @unique
+  emailVerified           DateTime?
+  image                   String?
+  passwordHash            String?
+  timezone                String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  accounts                Account[]
+  sessions                Session[]
+  projects                LearningProject[]
+  topicProgress           TopicProgress[]
+  resourceProgress        ResourceProgress[]
+  objectiveProgress       UserObjectiveProgress[]
+  resourceFeedback        ResourceFeedback[]
+  practiceAttempts        PracticeAttempt[]
+  revisionCards           RevisionCard[]
+  notes                   Note[]
+  mistakeEntries          MistakeEntry[]
+  mockExamAttempts        MockExamAttempt[]
   notificationPreferences NotificationPreference[]
-  notifications    Notification[]
-  calendarSyncs    CalendarSync[]
-  studyPlanOverrides StudyPlanOverride[]
-  analyticsSnapshots AnalyticsSnapshot[]
+  notifications           Notification[]
+  calendarSyncs           CalendarSync[]
+  studyPlanOverrides      StudyPlanOverride[]
+  analyticsSnapshots      AnalyticsSnapshot[]
 }
 
 model Account {
@@ -235,32 +259,33 @@ model VerificationToken {
 }
 
 model LearningProject {
-  id                 String           @id @default(cuid())
-  userId             String
-  title              String
-  slug               String
-  category           String?
-  goal               String
-  status             ProjectStatus    @default(DRAFT)
-  roadmapStatus      RoadmapStatus    @default(PENDING)
+  id                  String              @id @default(cuid())
+  userId              String
+  title               String
+  slug                String
+  category            String?
+  goal                String
+  status              ProjectStatus       @default(DRAFT)
+  roadmapStatus       RoadmapStatus       @default(PENDING)
   suggestedTopicOrder Json?
-  icon               String?
-  accentColor        String?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversations      AIConversation[]
-  blueprint          LearningBlueprint?
-  sidebarItems       SidebarItem[]
-  dashboardWidgets   DashboardWidget[]
-  topics             Topic[]
-  studyPlans         StudyPlan[]
-  schedulerEvents    SchedulerEvent[]
-  resources          Resource[]
-  notes              Note[]
-  examProfile        ExamProfile?
-  mockExams          MockExam[]
-  analyticsSnapshots AnalyticsSnapshot[]
+  icon                String?
+  accentColor         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations       AIConversation[]
+  blueprint           LearningBlueprint?
+  sidebarItems        SidebarItem[]
+  dashboardWidgets    DashboardWidget[]
+  topics              Topic[]
+  studyPlans          StudyPlan[]
+  schedulerEvents     SchedulerEvent[]
+  resources           Resource[]
+  notes               Note[]
+  examProfile         ExamProfile?
+  mockExams           MockExam[]
+  analyticsSnapshots  AnalyticsSnapshot[]
+  assetReadiness      AssetReadiness[]
 
   @@unique([userId, slug])
   @@index([userId])
@@ -333,34 +358,35 @@ model LearningStage {
 }
 
 model Topic {
-  id             String           @id @default(cuid())
-  projectId      String
-  stageId        String?
-  title          String
-  slug           String
-  description    String           @db.Text
-  estimatedHours Float
-  difficulty     TopicDifficulty
-  sectionKey     String
-  order          Int
-  status         TopicStatus      @default(LOCKED)
-  aiSummary      String?          @db.Text
-  createdAt      DateTime         @default(now())
-  project        LearningProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  stage          LearningStage?   @relation(fields: [stageId], references: [id], onDelete: SetNull)
-  parentDeps     TopicDependency[] @relation("TopicParent")
-  childDeps      TopicDependency[] @relation("TopicChild")
-  progress       TopicProgress[]
-  studyTasks     StudyTask[]
-  resources      Resource[]
-  objectives     LearningObjective[]
-  topicContents  TopicContent[]
-  questions      Question[]
-  practiceSets   PracticeSet[]
+  id               String              @id @default(cuid())
+  projectId        String
+  stageId          String?
+  title            String
+  slug             String
+  description      String              @db.Text
+  estimatedHours   Float
+  difficulty       TopicDifficulty
+  sectionKey       String
+  order            Int
+  status           TopicStatus         @default(LOCKED)
+  aiSummary        String?             @db.Text
+  createdAt        DateTime            @default(now())
+  project          LearningProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stage            LearningStage?      @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  parentDeps       TopicDependency[]   @relation("TopicParent")
+  childDeps        TopicDependency[]   @relation("TopicChild")
+  progress         TopicProgress[]
+  studyTasks       StudyTask[]
+  resources        Resource[]
+  objectives       LearningObjective[]
+  topicContents    TopicContent[]
+  questions        Question[]
+  practiceSets     PracticeSet[]
   practiceAttempts PracticeAttempt[]
-  revisionCards  RevisionCard[]
-  notes          Note[]
-  mistakeEntries MistakeEntry[]
+  revisionCards    RevisionCard[]
+  notes            Note[]
+  mistakeEntries   MistakeEntry[]
+  assetReadiness   AssetReadiness[]
 
   @@unique([projectId, slug])
   @@index([projectId])
@@ -380,33 +406,33 @@ model TopicDependency {
 }
 
 model TopicProgress {
-  id           String    @id @default(cuid())
-  topicId      String
-  userId       String
-  completion   Int       @default(0)
-  confidence   Int       @default(0)
-  lastStudied  DateTime?
-  totalMinutes    Int       @default(0)
-  metadata        Json?
-  autoCompletion  Int       @default(0)
-  autoConfidence  Int       @default(0)
-  manualOverride  Boolean   @default(false)
-  topic        Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String    @id @default(cuid())
+  topicId        String
+  userId         String
+  completion     Int       @default(0)
+  confidence     Int       @default(0)
+  lastStudied    DateTime?
+  totalMinutes   Int       @default(0)
+  metadata       Json?
+  autoCompletion Int       @default(0)
+  autoConfidence Int       @default(0)
+  manualOverride Boolean   @default(false)
+  topic          Topic     @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([topicId, userId])
   @@index([userId])
 }
 
 model StudyPlan {
-  id           String          @id @default(cuid())
+  id           String              @id @default(cuid())
   projectId    String
-  date         DateTime        @db.Date
+  date         DateTime            @db.Date
   totalMinutes Int
-  status       StudyPlanStatus @default(ACTIVE)
+  status       StudyPlanStatus     @default(ACTIVE)
   breakHints   Json?
-  generatedAt  DateTime        @default(now())
-  project      LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  generatedAt  DateTime            @default(now())
+  project      LearningProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks        StudyTask[]
   overrides    StudyPlanOverride[]
 
@@ -471,14 +497,14 @@ model SchedulerEvent {
 }
 
 model LearningObjective {
-  id          String           @id @default(cuid())
+  id          String                  @id @default(cuid())
   topicId     String
   title       String
-  description String           @db.Text
+  description String                  @db.Text
   order       Int
-  source      ObjectiveSource  @default(AI_ENRICH)
-  createdAt   DateTime         @default(now())
-  topic       Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  source      ObjectiveSource         @default(AI_ENRICH)
+  createdAt   DateTime                @default(now())
+  topic       Topic                   @relation(fields: [topicId], references: [id], onDelete: Cascade)
   progress    UserObjectiveProgress[]
 
   @@index([topicId])
@@ -574,23 +600,23 @@ model TopicContent {
 }
 
 model Question {
-  id            String          @id @default(cuid())
-  topicId       String
-  type          QuestionType
-  prompt        String          @db.Text
-  options       Json?
-  correctAnswer Json
-  explanation   String          @db.Text
-  difficulty    TopicDifficulty @default(INTERMEDIATE)
-  tags          String[]        @default([])
-  source        QuestionSource  @default(AI)
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  topic         Topic           @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  answers       PracticeAnswer[]
-  revisionCards RevisionCard[]
-  mistakeEntries MistakeEntry[]
+  id              String           @id @default(cuid())
+  topicId         String
+  type            QuestionType
+  prompt          String           @db.Text
+  options         Json?
+  correctAnswer   Json
+  explanation     String           @db.Text
+  difficulty      TopicDifficulty  @default(INTERMEDIATE)
+  tags            String[]         @default([])
+  source          QuestionSource   @default(AI)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  topic           Topic            @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  answers         PracticeAnswer[]
+  revisionCards   RevisionCard[]
+  mistakeEntries  MistakeEntry[]
   mockExamAnswers MockExamAnswer[]
 
   @@index([topicId])
@@ -750,16 +776,16 @@ model ExamSection {
 }
 
 model MockExam {
-  id               String          @id @default(cuid())
+  id               String            @id @default(cuid())
   projectId        String
   title            String
-  description      String?         @db.Text
+  description      String?           @db.Text
   questionIds      Json
-  totalMarks       Int             @default(100)
-  timeLimitMinutes Int             @default(60)
-  source           MockExamSource  @default(AI)
-  createdAt        DateTime        @default(now())
-  project          LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  totalMarks       Int               @default(100)
+  timeLimitMinutes Int               @default(60)
+  source           MockExamSource    @default(AI)
+  createdAt        DateTime          @default(now())
+  project          LearningProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   attempts         MockExamAttempt[]
   studyTasks       StudyTask[]
 
@@ -905,4 +931,67 @@ model AnalyticsSnapshot {
 
   @@unique([projectId, userId, date])
   @@index([projectId, userId, date])
+}
+
+/// One row per AI inference. Source of truth for cost, latency, failures, and
+/// the eval dataset; MLflow traces are exported from here rather than the
+/// reverse, so a tracing outage never loses data.
+model AiRun {
+  id               String      @id @default(cuid())
+  taskId           String
+  flow             String
+  status           AiRunStatus
+  userId           String
+  projectId        String?
+  topicId          String?
+  model            String
+  promptTokens     Int         @default(0)
+  completionTokens Int         @default(0)
+  cachedTokens     Int         @default(0)
+  latencyMs        Int         @default(0)
+  attempts         Int         @default(1)
+  memoriesUsed     Int         @default(0)
+  sampledForEval   Boolean     @default(false)
+  exportedAt       DateTime?
+  traceId          String?
+  input            Json?
+  output           Json?
+  error            String?     @db.Text
+  createdAt        DateTime    @default(now())
+
+  @@index([taskId, createdAt])
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([sampledForEval, exportedAt])
+  @@index([status, createdAt])
+}
+
+/// Readiness ledger for generated content. Lets the UI show honest per-asset
+/// state and lets the prewarm scheduler enqueue only what is actually missing.
+model AssetReadiness {
+  id          String     @id @default(cuid())
+  projectId   String
+  topicId     String?
+  /// `topicId` or the sentinel for project-scoped assets. Postgres treats NULLs
+  /// as distinct in unique indexes, so upserts need a non-null discriminator.
+  scopeKey    String
+  kind        AssetKind
+  state       AssetState @default(MISSING)
+  priority    Int        @default(0)
+  attempts    Int        @default(0)
+  lastRunId   String?
+  lastEventId String?
+  error       String?    @db.Text
+  requestedAt DateTime?
+  readyAt     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  project LearningProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  topic   Topic?          @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, scopeKey, kind])
+  @@index([projectId, state])
+  @@index([state, priority])
+  @@index([topicId])
 }

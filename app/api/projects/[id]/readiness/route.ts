@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { AssetReadinessService } from "@/server/services/asset-readiness.service";
 import { ProjectService } from "@/server/services/project.service";
-import { MockExamService } from "@/server/services/mock-exam.service";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const session = await auth();
@@ -18,6 +18,14 @@ export async function GET(
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  const readiness = await MockExamService.computeReadiness(session.user.id, id);
-  return NextResponse.json(readiness);
+  const topicId = new URL(request.url).searchParams.get("topicId");
+
+  // Content generated before the ledger existed has no rows; reconcile the
+  // topic being viewed so the UI does not claim ready content is missing.
+  if (topicId) {
+    await AssetReadinessService.reconcileTopic(project.id, topicId);
+  }
+
+  const readiness = await AssetReadinessService.listForProject(project.id);
+  return NextResponse.json({ readiness });
 }

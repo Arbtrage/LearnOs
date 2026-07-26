@@ -1,5 +1,8 @@
 import { getCategorySeeds } from "@/config/category-resource-seeds";
-import { discoverResourceCandidates } from "@/lib/ai/generate-grounded-search";
+import {
+  discoverResourceCandidates,
+  type GroundedSearchContext,
+} from "@/lib/ai/generate-grounded-search";
 import { mergeCandidates } from "@/lib/resources/ingest-candidates";
 import { conversationRepository } from "@/server/repositories/conversation.repository";
 import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
@@ -17,14 +20,17 @@ function extractUrlsFromAnswer(answer: unknown): string[] {
 }
 
 export class ResourceDiscoveryService {
-  static async searchForTopic(input: {
-    topicTitle: string;
-    topicDescription: string;
-    projectGoal: string;
-    category?: string | null;
-  }): Promise<ResourceCandidate[]> {
+  static async searchForTopic(
+    input: {
+      topicTitle: string;
+      topicDescription: string;
+      projectGoal: string;
+      category?: string | null;
+    },
+    ctx?: GroundedSearchContext,
+  ): Promise<ResourceCandidate[]> {
     const [search, catalog] = await Promise.all([
-      discoverResourceCandidates(input),
+      discoverResourceCandidates(input, ctx),
       Promise.resolve(
         getCategorySeeds(input.category, input.topicTitle),
       ),

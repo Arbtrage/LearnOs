@@ -1,0 +1,3 @@
+Exported AiRun samples land here as <date>.jsonl and are merged into the golden
+set at load time. The .jsonl files are gitignored; promote anything worth
+keeping into the curated seed file for its task.

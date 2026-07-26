@@ -6,11 +6,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Play } from "lucide-react";
 import { LoadingState } from "@/components/common/LoadingState";
 import { PendingButton } from "@/components/common/PendingButton";
+import { PendingGenerationNotice } from "@/features/readiness/PendingGenerationNotice";
 import { FlashcardLibrary } from "@/features/revision/FlashcardLibrary";
 import { RevisionHero } from "@/features/revision/RevisionHero";
 import { WorkspaceEmptyState } from "@/features/workspace/WorkspaceEmptyState";
+import { useAssetReadiness } from "@/hooks/use-asset-readiness";
 import { workspace } from "@/constants/design";
 import type { RevisionCardDto, RevisionQueueDto } from "@/types/revision";
+import { isAssetPending } from "@/types/readiness";
 import type { TopicDto } from "@/types/roadmap";
 
 type RevisionPageProps = {
@@ -58,6 +61,13 @@ function RevisionPageContent({ projectId, projectSlug }: RevisionPageProps) {
     },
   });
 
+  const readiness = useAssetReadiness({ projectId });
+  const pendingSourceTopics = readiness.rows.filter(
+    (row) =>
+      (row.kind === "LESSON" || row.kind === "FLASHCARDS") &&
+      isAssetPending(row.state),
+  ).length;
+
   function refreshAll() {
     void queryClient.invalidateQueries({ queryKey: ["revision", projectId] });
     void queryClient.invalidateQueries({ queryKey: ["revision-cards", projectId] });
@@ -83,6 +93,11 @@ function RevisionPageContent({ projectId, projectSlug }: RevisionPageProps) {
   return (
     <div className="space-y-6">
       <RevisionHero stats={stats} projectSlug={projectSlug} />
+
+      <PendingGenerationNotice
+        kinds={["FLASHCARDS"]}
+        count={pendingSourceTopics}
+      />
 
       <div className={workspace.sectionCard}>
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">

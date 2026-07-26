@@ -1,12 +1,8 @@
-import {
-  normalizeOnboardingBatchResponse,
-  parseQuestionnaireMetadata,
-} from "@/lib/ai/normalize/onboarding";
+import { parseQuestionnaireMetadata } from "@/lib/ai/normalize/onboarding";
 import { formatAnswerForDisplay } from "@/lib/ai/format-answer";
-import { buildOnboardingBatchPrompt } from "@/lib/ai/prompts/onboarding-batch";
+import { runAiTask } from "@/lib/ai/kernel";
+import { onboardingQuestionnaireTask } from "@/lib/ai/kernel/tasks";
 import type { PastProjectContext } from "@/lib/ai/prompts/onboarding-types";
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { conversationRepository } from "@/server/repositories/conversation.repository";
@@ -14,7 +10,6 @@ import { interviewAnswerRepository } from "@/server/repositories/interview-answe
 import { messageRepository } from "@/server/repositories/message.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import {
-  onboardingBatchAiSchema,
   questionSchema,
   type InterviewAnswerValue,
   type OnboardingState,
@@ -168,6 +163,7 @@ export class OnboardingService {
         answer: a.answer,
       })),
       pastProjects,
+      { userId, projectId: project.id },
     );
 
     await messageRepository.create({
@@ -217,23 +213,14 @@ export class OnboardingService {
     goal: string,
     priorAnswers: Array<{ questionKey: string; answer: unknown }>,
     pastProjects: PastProjectContext[],
+    invocation: { userId: string; projectId: string },
   ): Promise<QuestionnaireMetadata> {
-    const provider = getAIProvider();
-    const parts = buildOnboardingBatchPrompt(
-      title,
-      goal,
-      priorAnswers,
-      pastProjects,
-    );
-
     try {
-      const raw = await provider.generateObject({
-        flow: "onboarding",
-        system: combineSystem(parts),
-        prompt: parts.user,
-        schema: onboardingBatchAiSchema,
-      });
-      return normalizeOnboardingBatchResponse(raw);
+      return await runAiTask(
+        onboardingQuestionnaireTask,
+        { title, goal, priorAnswers, pastProjects },
+        invocation,
+      );
     } catch (error) {
       throw toUserFacingAIError(error);
     }

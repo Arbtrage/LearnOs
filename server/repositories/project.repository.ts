@@ -34,6 +34,14 @@ export const projectRepository = {
     return rows.map((row) => row.id);
   },
 
+  /** Prewarm targets: active projects that already have a roadmap to warm. */
+  async listActiveWithOwner(): Promise<Array<{ id: string; userId: string }>> {
+    return prisma.learningProject.findMany({
+      where: { status: "ACTIVE", roadmapStatus: "READY" },
+      select: { id: true, userId: true },
+    });
+  },
+
   async listByUserId(
     userId: string,
     options?: { includeArchived?: boolean },

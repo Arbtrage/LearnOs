@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/app/generated/prisma/client";
 
 /** Bump when `schema.prisma` changes so dev HMR does not keep a stale client. */
-const PRISMA_CLIENT_BUILD_ID = "2026-07-24-sidebar-sectionKey";
+const PRISMA_CLIENT_BUILD_ID = "2026-07-26-ai-run-asset-readiness";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

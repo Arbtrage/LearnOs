@@ -57,7 +57,7 @@ export async function createProjectFromIntent(
 
   let suggestion;
   try {
-    suggestion = await ProjectSuggestService.suggest(trimmed);
+    suggestion = await ProjectSuggestService.suggest(trimmed, session.user.id);
   } catch (error) {
     return { error: toUserFacingAIError(error).message };
   }

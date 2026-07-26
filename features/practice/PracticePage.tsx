@@ -10,8 +10,11 @@ import { PracticeSetCard } from "@/features/practice/PracticeSetCard";
 import { WeakTopicsBanner } from "@/features/practice/WeakTopicsBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MistakeList } from "@/features/practice/MistakeList";
+import { PendingGenerationNotice } from "@/features/readiness/PendingGenerationNotice";
 import { WorkspaceEmptyState } from "@/features/workspace/WorkspaceEmptyState";
+import { useAssetReadiness } from "@/hooks/use-asset-readiness";
 import type { PracticeHistoryDto, PracticeSetDto } from "@/types/practice";
+import { isAssetPending } from "@/types/readiness";
 import { useRouter } from "next/navigation";
 
 type PracticePageProps = {
@@ -94,6 +97,11 @@ export function PracticePage({ projectId, projectSlug }: PracticePageProps) {
     },
   });
 
+  const readiness = useAssetReadiness({ projectId });
+  const pendingQuestionTopics = readiness.rows.filter(
+    (row) => row.kind === "QUESTIONS" && isAssetPending(row.state),
+  ).length;
+
   if (practiceQuery.isLoading) {
     return <LoadingState label="Loading practice..." />;
   }
@@ -124,6 +132,11 @@ export function PracticePage({ projectId, projectSlug }: PracticePageProps) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="sets" className="mt-4 space-y-6">
+      <PendingGenerationNotice
+        kinds={["QUESTIONS"]}
+        count={pendingQuestionTopics}
+      />
+
       {weakTopicIds.length > 0 ? (
         <WeakTopicsBanner
           loading={startMutation.isPending}

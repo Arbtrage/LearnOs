@@ -1,8 +1,6 @@
-import { normalizeBlueprintResponse } from "@/lib/ai/normalize/blueprint";
 import { DEFAULT_GEMINI_MODEL } from "@/lib/ai/config";
-import { buildBlueprintPrompt } from "@/lib/ai/prompts/blueprint";
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { getAIProvider } from "@/lib/ai/providers/gemini";
+import { runAiTaskWithMeta } from "@/lib/ai/kernel";
+import { blueprintTask } from "@/lib/ai/kernel/tasks";
 import { toUserFacingAIError } from "@/lib/ai/errors";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { blueprintRepository } from "@/server/repositories/blueprint.repository";
@@ -11,18 +9,29 @@ import { dashboardWidgetRepository } from "@/server/repositories/dashboard-widge
 import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { sidebarRepository } from "@/server/repositories/sidebar.repository";
-import { blueprintAiSchema } from "@/types/blueprint";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { RoadmapService } from "@/server/services/roadmap.service";
 
-const inFlightGenerations = new Set<string>();
+export type BlueprintStageResult = {
+  created: boolean;
+  /** True when the caller still needs to run roadmap generation. */
+  roadmapNeeded: boolean;
+};
 
 export class BlueprintService {
   static async getByProjectId(projectId: string) {
     return blueprintRepository.findByProjectId(projectId);
   }
 
-  static async generate(userId: string, projectId: string): Promise<{ created: boolean }> {
+  /**
+   * Blueprint inference and workspace scaffolding only. Kept separate from
+   * roadmap generation so the durable job can checkpoint between the two and
+   * never re-pay for blueprint inference when the roadmap step retries.
+   */
+  static async generateBlueprintOnly(
+    userId: string,
+    projectId: string,
+  ): Promise<BlueprintStageResult> {
     const project = await projectRepository.findById(projectId);
     if (!project || project.userId !== userId) {
       throw new Error("Project not found");
@@ -31,41 +40,19 @@ export class BlueprintService {
     const existingBlueprint = await blueprintRepository.findByProjectId(projectId);
     const existingSidebar = await sidebarRepository.listByProjectId(projectId);
     const existingWidgets = await dashboardWidgetRepository.listByProjectId(projectId);
-
     const existingTopicCount = await topicRepository.countByProjectId(projectId);
 
-    const workspaceReady =
+    const roadmapReady =
+      existingTopicCount > 0 || project.roadmapStatus === "READY";
+
+    const scaffoldReady =
       Boolean(existingBlueprint) &&
       existingSidebar.length > 0 &&
-      existingWidgets.length > 0 &&
-      (existingTopicCount > 0 || project.roadmapStatus === "READY");
+      existingWidgets.length > 0;
 
-    if (workspaceReady) {
-      if (project.status === "GENERATING") {
-        await projectRepository.updateStatus(projectId, "ACTIVE");
-      }
-      return { created: false };
+    if (scaffoldReady) {
+      return { created: false, roadmapNeeded: !roadmapReady };
     }
-
-    if (
-      Boolean(existingBlueprint) &&
-      existingSidebar.length > 0 &&
-      existingWidgets.length > 0 &&
-      project.roadmapStatus !== "READY"
-    ) {
-      await RoadmapService.generate(userId, projectId);
-      const refreshed = await projectRepository.findById(projectId);
-      if (refreshed?.roadmapStatus === "READY") {
-        await projectRepository.updateStatus(projectId, "ACTIVE");
-      }
-      return { created: false };
-    }
-
-    if (inFlightGenerations.has(projectId)) {
-      return { created: false };
-    }
-
-    inFlightGenerations.add(projectId);
 
     try {
       const completedConversation =
@@ -79,24 +66,19 @@ export class BlueprintService {
         completedConversation.id,
       );
 
-      const parts = buildBlueprintPrompt({
-        title: project.title,
-        goal: project.goal,
-        category: project.category,
-        answers: answers.map((a) => ({
-          questionKey: a.questionKey,
-          answer: a.answer,
-        })),
-      });
-
-      const provider = getAIProvider();
-      const raw = await provider.generateObject({
-        flow: "blueprint",
-        system: combineSystem(parts),
-        prompt: parts.user,
-        schema: blueprintAiSchema,
-      });
-      const generated = normalizeBlueprintResponse(raw);
+      const { output: generated, meta } = await runAiTaskWithMeta(
+        blueprintTask,
+        {
+          title: project.title,
+          goal: project.goal,
+          category: project.category,
+          answers: answers.map((a) => ({
+            questionKey: a.questionKey,
+            answer: a.answer,
+          })),
+        },
+        { userId, projectId },
+      );
 
       if (!existingBlueprint) {
         await blueprintRepository.createWithStages({
@@ -105,7 +87,7 @@ export class BlueprintService {
           durationWeeks: generated.blueprint.durationWeeks,
           dailyCommitment: generated.blueprint.dailyCommitment,
           methodology: generated.blueprint.methodology,
-          generatedBy: process.env.GOOGLE_GENERATIVE_AI_MODEL ?? DEFAULT_GEMINI_MODEL,
+          generatedBy: meta.model || DEFAULT_GEMINI_MODEL,
           metadata: {
             projectSummary: generated.project.summary,
           },
@@ -146,18 +128,31 @@ export class BlueprintService {
         );
       }
 
-      await RoadmapService.generate(userId, projectId);
-
-      const refreshed = await projectRepository.findById(projectId);
-      if (refreshed?.roadmapStatus === "READY") {
-        await projectRepository.updateStatus(projectId, "ACTIVE");
-      }
-
-      return { created: !existingBlueprint };
+      return { created: !existingBlueprint, roadmapNeeded: !roadmapReady };
     } catch (error) {
       throw toUserFacingAIError(error);
-    } finally {
-      inFlightGenerations.delete(projectId);
     }
+  }
+
+  /**
+   * Blueprint plus roadmap in one call. Used by scripts and as a fallback when
+   * background processing is unavailable; the request path enqueues instead.
+   */
+  static async generate(
+    userId: string,
+    projectId: string,
+  ): Promise<{ created: boolean }> {
+    const result = await this.generateBlueprintOnly(userId, projectId);
+
+    if (result.roadmapNeeded) {
+      await RoadmapService.generate(userId, projectId);
+    }
+
+    const refreshed = await projectRepository.findById(projectId);
+    if (refreshed?.roadmapStatus === "READY" && refreshed.status === "GENERATING") {
+      await projectRepository.updateStatus(projectId, "ACTIVE");
+    }
+
+    return { created: result.created };
   }
 }

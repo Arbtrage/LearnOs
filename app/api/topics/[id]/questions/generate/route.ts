@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { isUserFacingError } from "@/lib/errors/user-facing";
-import { QuestionService } from "@/server/services/question.service";
+import { inngest } from "@/lib/jobs/client";
+import { topicQuestionsRequested } from "@/lib/jobs/events";
+import { AssetReadinessService } from "@/server/services/asset-readiness.service";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
 import { generateQuestionsSchema } from "@/types/practice";
@@ -32,16 +33,18 @@ export async function POST(
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  try {
-    const result = await QuestionService.generateForTopic(
-      session.user.id,
-      id,
-      parsed.data.count ?? 10,
-    );
-    return NextResponse.json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Generation failed";
-    const status = isUserFacingError(error) ? 422 : 500;
-    return NextResponse.json({ error: message }, { status });
-  }
+  const ref = { projectId: project.id, topicId: id, kind: "QUESTIONS" as const };
+  await AssetReadinessService.markQueued(ref, 100);
+
+  const { ids } = await inngest.send(
+    topicQuestionsRequested.create({
+      userId: session.user.id,
+      projectId: project.id,
+      topicId: id,
+      count: parsed.data.count ?? 10,
+      reason: "user",
+    }),
+  );
+
+  return NextResponse.json({ enqueued: true, eventIds: ids }, { status: 202 });
 }

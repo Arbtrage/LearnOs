@@ -1,0 +1,98 @@
+name: GenAI evals
+
+on:
+  pull_request:
+    paths:
+      - "lib/ai/**"
+      - "lib/content/markdown-lint.ts"
+      - "lib/practice/normalize-questions.ts"
+      - "types/practice.ts"
+      - "evals/**"
+      - "scripts/eval-invariants.ts"
+      - ".github/workflows/evals.yml"
+  schedule:
+    # Weekly — Mondays 05:00 UTC, after the Sunday resource recheck.
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      refresh_dataset:
+        description: "Pull newly sampled AiRun rows before evaluating"
+        type: boolean
+        default: false
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: evals
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Node dependencies
+        working-directory: .
+        # The invariant bridge runs the app's real validators, so it needs the
+        # app's dependency tree.
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Generate Prisma client
+        working-directory: .
+        run: pnpm exec prisma generate
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install eval harness
+        run: pip install -e ".[dev]"
+
+      - name: Refresh golden dataset from sampled runs
+        if: github.event_name == 'schedule' || inputs.refresh_dataset
+        env:
+          APP_URL: ${{ vars.LEARNOS_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "LEARNOS_APP_URL / CRON_SECRET not set; evaluating curated seeds only."
+            exit 0
+          fi
+          mkdir -p datasets/exported
+          curl -sf -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/evals/export?limit=500" \
+            -o "datasets/exported/$(date -u +%Y-%m-%d).jsonl"
+
+      - name: Check the invariant bridge
+        # Fast, free, and deterministic. If the bridge is broken every code
+        # scorer would pass vacuously, so fail here before paying for judges.
+        run: pytest tests -q
+
+      - name: Run evals
+        env:
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_ID: ${{ vars.MLFLOW_EXPERIMENT_ID }}
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+        run: |
+          if [ -z "$DATABRICKS_HOST" ] || [ -z "$DATABRICKS_TOKEN" ]; then
+            echo "Databricks not configured; running deterministic scorers only."
+            python -m learnos_evals.run --all --no-judges
+          else
+            python -m learnos_evals.run --all
+          fi

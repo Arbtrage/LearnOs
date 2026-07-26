@@ -23,6 +23,21 @@ export type GenerateStructuredParams<T extends z.ZodType> = {
   system: string;
   prompt: string;
   schema: T;
+  temperature?: number;
+};
+
+export type StructuredCallMeta = {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  cachedTokens: number;
+  latencyMs: number;
+  repaired: boolean;
+};
+
+export type StructuredResult<T extends z.ZodType> = {
+  object: z.infer<T>;
+  meta: StructuredCallMeta;
 };
 
 function extractJson(text: string): unknown {
@@ -54,7 +69,15 @@ function isSchemaError(error: unknown): boolean {
 export async function generateStructured<T extends z.ZodType>(
   params: GenerateStructuredParams<T>,
 ): Promise<z.infer<T>> {
+  const { object } = await generateStructuredWithMeta(params);
+  return object;
+}
+
+export async function generateStructuredWithMeta<T extends z.ZodType>(
+  params: GenerateStructuredParams<T>,
+): Promise<StructuredResult<T>> {
   const models = getGeminiModelCandidates(params.flow);
+  const temperature = params.temperature ?? STRUCTURED_OUTPUT_TEMPERATURE;
   let lastQuotaError: unknown;
   let lastError: unknown;
 
@@ -66,20 +89,26 @@ export async function generateStructured<T extends z.ZodType>(
         system: params.system,
         prompt: params.prompt,
         schema: params.schema,
-        temperature: STRUCTURED_OUTPUT_TEMPERATURE,
+        temperature,
         maxRetries: 1,
       });
+
+      const tokens = usageFromResult(usage);
+      const latencyMs = Date.now() - started;
 
       logAIUsage({
         flow: params.flow,
         model: modelId,
-        durationMs: Date.now() - started,
-        ...usageFromResult(usage),
+        durationMs: latencyMs,
+        ...tokens,
       });
 
       const validated = params.schema.safeParse(object);
       if (validated.success) {
-        return validated.data as z.infer<T>;
+        return {
+          object: validated.data as z.infer<T>,
+          meta: { model: modelId, latencyMs, repaired: false, ...tokens },
+        };
       }
 
       lastError = validated.error;
@@ -87,10 +116,24 @@ export async function generateStructured<T extends z.ZodType>(
         flow: params.flow,
         modelId,
         schema: params.schema,
+        temperature,
         invalidText: JSON.stringify(object),
         errorMessage: validated.error.message,
       });
-      if (repaired) return repaired;
+      if (repaired) {
+        return {
+          object: repaired.object,
+          meta: {
+            model: modelId,
+            latencyMs: Date.now() - started,
+            repaired: true,
+            promptTokens: tokens.promptTokens + repaired.tokens.promptTokens,
+            completionTokens:
+              tokens.completionTokens + repaired.tokens.completionTokens,
+            cachedTokens: tokens.cachedTokens + repaired.tokens.cachedTokens,
+          },
+        };
+      }
     } catch (error) {
       if (isQuotaOrRateLimitError(error)) {
         lastQuotaError = error;
@@ -107,11 +150,22 @@ export async function generateStructured<T extends z.ZodType>(
             flow: params.flow,
             modelId,
             schema: params.schema,
+            temperature,
             invalidText,
             errorMessage:
               error instanceof Error ? error.message : "Schema validation failed",
           });
-          if (repaired) return repaired;
+          if (repaired) {
+            return {
+              object: repaired.object,
+              meta: {
+                model: modelId,
+                latencyMs: Date.now() - started,
+                repaired: true,
+                ...repaired.tokens,
+              },
+            };
+          }
         } catch (repairError) {
           lastError = repairError;
         }
@@ -136,13 +190,19 @@ export async function generateStructured<T extends z.ZodType>(
   );
 }
 
+type RepairTokens = Pick<
+  StructuredCallMeta,
+  "promptTokens" | "completionTokens" | "cachedTokens"
+>;
+
 async function repairStructured<T extends z.ZodType>(input: {
   flow: AIFlow;
   modelId: string;
   schema: T;
+  temperature: number;
   invalidText?: string;
   errorMessage: string;
-}): Promise<z.infer<T> | null> {
+}): Promise<{ object: z.infer<T>; tokens: RepairTokens } | null> {
   const truncatedInvalid = input.invalidText
     ? input.invalidText.slice(0, MAX_REPAIR_JSON_CHARS)
     : undefined;
@@ -160,22 +220,25 @@ async function repairStructured<T extends z.ZodType>(input: {
     model: google(input.modelId),
     system: REPAIR_SYSTEM,
     prompt: repairPrompt,
-    temperature: STRUCTURED_OUTPUT_TEMPERATURE,
+    temperature: input.temperature,
     maxRetries: 0,
     providerOptions: {
       google: { responseMimeType: "application/json" },
     },
   });
 
+  const tokens = usageFromResult(usage);
+
   logAIUsage({
     flow: input.flow,
     model: `${input.modelId}:repair`,
     durationMs: Date.now() - started,
-    ...usageFromResult(usage),
+    ...tokens,
   });
 
   const parsed = input.schema.safeParse(extractJson(text));
-  return parsed.success ? (parsed.data as z.infer<T>) : null;
+  if (!parsed.success) return null;
+  return { object: parsed.data as z.infer<T>, tokens };
 }
 
 function toAIProviderError(error: unknown): AIProviderError {

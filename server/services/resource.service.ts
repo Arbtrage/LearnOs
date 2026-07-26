@@ -1,6 +1,5 @@
-import { combineSystem } from "@/lib/ai/prompts/parts";
-import { buildResourceRankPrompt } from "@/lib/ai/prompts/topic-enrichment";
-import { generateStructured } from "@/lib/ai/generate-structured";
+import { runAiTask } from "@/lib/ai/kernel";
+import { resourceRankTask } from "@/lib/ai/kernel/tasks";
 import {
   buildCandidateMap,
   joinRankedResources,
@@ -17,7 +16,6 @@ import type {
 import {
   resourceFeedbackSchema,
   resourceProgressSchema,
-  resourceRankAiSchema,
   type ResourceDto,
 } from "@/types/resources";
 import { prisma } from "@/lib/db/prisma";
@@ -151,6 +149,7 @@ export class ResourceService {
   }
 
   static async rankAndIngest(input: {
+    userId: string;
     projectId: string;
     topicId: string;
     category?: string | null;
@@ -166,18 +165,19 @@ export class ResourceService {
   }) {
     if (input.verifiedCandidates.length === 0) return [];
 
-    const parts = buildResourceRankPrompt({
-      topicTitle: input.topicTitle,
-      topicDescription: input.topicDescription,
-      candidates: input.verifiedCandidates,
-    });
-
-    const ranked = await generateStructured({
-      flow: "topic-enrichment",
-      system: combineSystem(parts),
-      prompt: parts.user,
-      schema: resourceRankAiSchema,
-    });
+    const ranked = await runAiTask(
+      resourceRankTask,
+      {
+        topicTitle: input.topicTitle,
+        topicDescription: input.topicDescription,
+        candidates: input.verifiedCandidates,
+      },
+      {
+        userId: input.userId,
+        projectId: input.projectId,
+        topicId: input.topicId,
+      },
+    );
 
     const map = buildCandidateMap(
       input.verifiedCandidates.map((c) => ({

@@ -1,5 +1,7 @@
 import { MENTOR_NAME, MENTOR_TAGLINE } from "@/constants/ai-persona";
 import { formatAnswerCompact } from "@/lib/ai/format-answer";
+import { memoryContextBlock } from "@/lib/ai/kernel/memory-context";
+import type { AiMemory } from "@/lib/ai/kernel/types";
 import type { PromptParts } from "@/lib/ai/prompts/parts";
 
 export type MentorPromptInput = {
@@ -16,6 +18,8 @@ export type MentorPromptInput = {
   focusTopicDescription?: string;
   focusResourceTitle?: string;
   incompleteObjectives?: string[];
+  /** Recalled episodes so the mentor remembers across threads. */
+  memories?: AiMemory[];
 };
 
 export function buildMentorPrompt(input: MentorPromptInput): PromptParts {
@@ -53,6 +57,8 @@ export function buildMentorPrompt(input: MentorPromptInput): PromptParts {
     }
   }
 
+  const memoryBlock = memoryContextBlock(input.memories ?? []);
+
   const dynamicLines = [
     `Project: ${input.title}`,
     `Goal: ${input.goal}`,
@@ -64,6 +70,8 @@ export function buildMentorPrompt(input: MentorPromptInput): PromptParts {
     ...focusLines,
     profileLines.length > 0 ? "" : "",
     ...profileLines,
+    memoryBlock ? "" : "",
+    memoryBlock,
   ].filter((line, index, arr) => line !== "" || index < arr.length - 1);
 
   return {

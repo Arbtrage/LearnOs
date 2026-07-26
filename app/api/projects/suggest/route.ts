@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   try {
     const suggestion = await ProjectSuggestService.suggest(
       parsed.data.learningIntent,
+      session.user.id,
     );
     return NextResponse.json({ suggestion });
   } catch (error) {
