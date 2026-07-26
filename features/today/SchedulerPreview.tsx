@@ -4,7 +4,6 @@ import { CalendarDays } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SchedulePreviewDto } from "@/types/study";
 
 type SchedulerPreviewProps = {
@@ -32,7 +31,7 @@ export function SchedulerPreview({ schedule, projectId }: SchedulerPreviewProps)
   return (
     <div className="space-y-4">
       {projectId ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 rounded-xl border bg-card/40 p-4">
           <Button
             size="sm"
             variant="outline"
@@ -51,21 +50,24 @@ export function SchedulerPreview({ schedule, projectId }: SchedulerPreviewProps)
         </div>
       ) : null}
       {schedule.days.map((day) => (
-        <Card key={day.date}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <article
+          key={day.date}
+          className="overflow-hidden rounded-xl border bg-card/70 shadow-sm"
+        >
+          <header className="flex flex-row items-center justify-between border-b border-border/60 px-4 py-3">
             <div className="flex items-center gap-2">
-              <CalendarDays className="size-4 text-muted-foreground" aria-hidden="true" />
-              <CardTitle className="text-base">
+              <CalendarDays className="size-4 text-primary" aria-hidden="true" />
+              <h3 className="font-medium">
                 {new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, {
                   weekday: "long",
                   month: "short",
                   day: "numeric",
                 })}
-              </CardTitle>
+              </h3>
             </div>
             <Badge variant="outline">{day.totalMinutes} min</Badge>
-          </CardHeader>
-          <CardContent>
+          </header>
+          <div className="p-4">
             {day.tasks.length === 0 ? (
               <p className="text-sm text-muted-foreground">No tasks projected</p>
             ) : (
@@ -73,18 +75,18 @@ export function SchedulerPreview({ schedule, projectId }: SchedulerPreviewProps)
                 {day.tasks.map((task, i) => (
                   <li
                     key={`${day.date}-${i}`}
-                    className="flex items-center justify-between text-sm"
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2 text-sm"
                   >
                     <span>{task.title}</span>
-                    <span className="text-muted-foreground">
+                    <span className="shrink-0 text-muted-foreground">
                       {task.estimatedMinutes} min · {task.priority.toLowerCase()}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </article>
       ))}
     </div>
   );

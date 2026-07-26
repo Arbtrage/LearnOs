@@ -16,5 +16,10 @@ export default async function ProjectResourcesPage({ params }: PageProps) {
     notFound();
   }
 
-  return <ResourcesPage projectId={workspace.project.id} />;
+  return (
+    <ResourcesPage
+      projectId={workspace.project.id}
+      projectSlug={slug}
+    />
+  );
 }

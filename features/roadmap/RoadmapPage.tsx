@@ -3,8 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { LoadingState } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MilestoneCard } from "@/features/roadmap/MilestoneCard";
 import { RoadmapTimeline } from "@/features/roadmap/RoadmapTimeline";
 import { WorkspaceEmptyState } from "@/features/workspace/WorkspaceEmptyState";
 import type { MilestoneCardDto, RoadmapDto } from "@/types/roadmap";
@@ -59,24 +57,13 @@ export function RoadmapPage({ projectId, projectSlug }: RoadmapPageProps) {
     <div className="space-y-6">
       <PageHeader
         title="Roadmap"
-        description="Your Bloom-aligned learning path with milestones and topic progress."
+        description="Your Bloom-aligned learning journey — from first steps to mastery."
       />
-      <Tabs defaultValue="timeline">
-        <TabsList>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="milestones">Milestones</TabsTrigger>
-        </TabsList>
-        <TabsContent value="timeline" className="mt-4">
-          <RoadmapTimeline roadmap={roadmapQuery.data} projectSlug={projectSlug} />
-        </TabsContent>
-        <TabsContent value="milestones" className="mt-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {(milestonesQuery.data?.milestones ?? []).map((milestone) => (
-              <MilestoneCard key={milestone.id} milestone={milestone} />
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+      <RoadmapTimeline
+        roadmap={roadmapQuery.data}
+        projectSlug={projectSlug}
+        milestones={milestonesQuery.data?.milestones ?? []}
+      />
     </div>
   );
 }

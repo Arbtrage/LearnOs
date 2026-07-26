@@ -4,13 +4,12 @@ import * as React from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Send, Sparkles } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownContent } from "@/components/common/MarkdownContent";
 import { MENTOR_NAME, MENTOR_TAGLINE } from "@/constants/ai-persona";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const SUGGESTED_PROMPTS = [
+const DEFAULT_SUGGESTED_PROMPTS = [
   "Explain today's focus topic in simple terms",
   "Plan a focused 30-minute study session",
   "Help me reschedule if I'm behind",
@@ -24,6 +23,10 @@ type SageChatProps = {
   projectId: string;
   userName?: string | null;
   section?: string;
+  taskId?: string;
+  topicId?: string | null;
+  incompleteObjectives?: string[];
+  suggestedPrompts?: string[];
   className?: string;
 };
 
@@ -32,7 +35,16 @@ function getFirstName(name?: string | null) {
   return first || null;
 }
 
-export function SageChat({ projectId, userName, section, className }: SageChatProps) {
+export function SageChat({
+  projectId,
+  userName,
+  section,
+  taskId,
+  topicId,
+  incompleteObjectives,
+  suggestedPrompts = DEFAULT_SUGGESTED_PROMPTS,
+  className,
+}: SageChatProps) {
   const [input, setInput] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -40,9 +52,14 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
     () =>
       new DefaultChatTransport({
         api: `/api/projects/${projectId}/mentor`,
-        body: { section },
+        body: {
+          section,
+          taskId,
+          topicId: topicId ?? undefined,
+          incompleteObjectives,
+        },
       }),
-    [projectId, section],
+    [projectId, section, taskId, topicId, incompleteObjectives],
   );
 
   const { messages, sendMessage, status } = useChat({
@@ -80,41 +97,43 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
 
   return (
     <div className={cn("relative flex h-full min-h-0 flex-col", className)}>
-      <div className="flex-1 overflow-y-auto px-4 pb-36 pt-6 sm:px-6">
+      <div className="flex-1 overflow-y-auto px-4 pb-36 pt-4 sm:px-4">
         {messages.length === 0 ? (
-          <div className="mx-auto flex max-w-2xl flex-col items-center pt-12 text-center sm:pt-20">
+          <div className="mx-auto flex max-w-2xl flex-col items-center pt-8 text-center sm:pt-12">
             <div className="relative mb-6">
               <div
                 className="absolute inset-0 scale-150 rounded-full bg-primary/20 blur-2xl"
                 aria-hidden="true"
               />
-              <div className="relative flex size-16 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
-                <Sparkles className="size-8 text-primary" aria-hidden="true" />
+              <div className="relative flex size-14 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/20">
+                <Sparkles className="size-7 text-primary" aria-hidden="true" />
               </div>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
               {firstName ? `Hey ${firstName}, I'm ${MENTOR_NAME}` : `Hey there, I'm ${MENTOR_NAME}`}
             </h1>
-            <p className="mt-2 max-w-md text-muted-foreground">{MENTOR_TAGLINE}</p>
+            <p className="mt-2 max-w-md text-sm text-muted-foreground">{MENTOR_TAGLINE}</p>
             <p className="mt-4 max-w-lg text-sm text-muted-foreground">
               Ask for explanations, study plans, or a nudge when motivation dips.
             </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-2">
-              {SUGGESTED_PROMPTS.map((prompt) => (
-                <button
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {suggestedPrompts.map((prompt) => (
+                <Button
                   key={prompt}
                   type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-auto whitespace-normal px-3 py-2 text-left text-xs"
                   onClick={() => handlePrompt(prompt)}
-                  className="rounded-full border border-border bg-card/80 px-3 py-1.5 text-left text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/40 hover:text-foreground"
                 >
                   {prompt}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
         ) : (
           <div className="mx-auto max-w-2xl space-y-4">
-            {messages.map((message) => (
+            {messages.map((message, messageIndex) => (
               <div
                 key={message.id}
                 className={cn(
@@ -123,42 +142,45 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
                 )}
               >
                 {message.role === "assistant" ? (
-                  <div className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-card">
+                  <div className="grid size-7 shrink-0 place-items-center rounded-lg border border-border bg-card">
                     <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
                   </div>
                 ) : null}
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                    "max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed",
                     message.role === "user"
                       ? "gradient-primary text-primary-foreground"
                       : "border border-border bg-card text-foreground/90",
                   )}
                 >
-                {message.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {message.role === "assistant" ? (
+                    <MarkdownContent
+                      variant="chat"
+                      isAnimating={
+                        isLoading && messageIndex === messages.length - 1
+                      }
+                    >
                       {message.parts
                         .filter((p) => p.type === "text")
                         .map((p) => (p.type === "text" ? p.text : ""))
                         .join("")}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  message.parts
-                    .filter((p) => p.type === "text")
-                    .map((p) => (p.type === "text" ? p.text : ""))
-                    .join("")
-                )}
+                    </MarkdownContent>
+                  ) : (
+                    message.parts
+                      .filter((p) => p.type === "text")
+                      .map((p) => (p.type === "text" ? p.text : ""))
+                      .join("")
+                  )}
                 </div>
               </div>
             ))}
             {isLoading ? (
               <div className="flex gap-2">
-                <div className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-card">
+                <div className="grid size-7 shrink-0 place-items-center rounded-lg border border-border bg-card">
                   <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
                 </div>
-                <div className="rounded-2xl border border-border bg-card px-4 py-3">
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
                   <div className="flex gap-1">
                     <span className="size-2 animate-typing rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
                     <span className="size-2 animate-typing rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
@@ -172,12 +194,12 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
         )}
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent pb-6 pt-16">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent pb-4 pt-12">
         <form
           onSubmit={handleSubmit}
-          className="pointer-events-auto mx-auto max-w-3xl px-4 sm:px-6"
+          className="pointer-events-auto mx-auto max-w-3xl px-4"
         >
-          <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-background/95 p-2 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex items-end gap-2 rounded-lg border border-border/60 bg-background/95 p-2 shadow-lg shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <textarea
               ref={textareaRef}
               value={input}
@@ -196,7 +218,7 @@ export function SageChat({ projectId, userName, section, className }: SageChatPr
             <Button
               type="submit"
               size="icon"
-              className="gradient-primary shrink-0 rounded-xl text-primary-foreground"
+              className="gradient-primary shrink-0 text-primary-foreground"
               disabled={isLoading || !input.trim()}
             >
               <Send className="size-4" aria-hidden="true" />

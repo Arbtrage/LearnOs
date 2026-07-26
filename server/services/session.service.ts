@@ -24,9 +24,13 @@ export class SessionService {
       title: task.title,
       estimatedMinutes: task.estimatedMinutes,
       status: task.status as TaskFocusDto["status"],
+      taskType: task.taskType as TaskFocusDto["taskType"],
       topicId: task.topicId,
       topicSlug: task.topic?.slug ?? null,
+      topicTitle: task.topic?.title ?? null,
+      topicDescription: task.topic?.description ?? null,
       resourceId: task.resourceId,
+      resourceTitle: task.resource?.title ?? null,
       activeSession: activeSession
         ? {
             id: activeSession.id,

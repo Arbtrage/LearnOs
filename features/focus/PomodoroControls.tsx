@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { TimerMode } from "@/hooks/use-study-timer";
 
 type PomodoroControlsProps = {
@@ -38,7 +39,7 @@ export function PomodoroControls({
       {mode === "custom" ? (
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           Minutes
-          <input
+          <Input
             type="number"
             min={5}
             max={180}
@@ -46,7 +47,7 @@ export function PomodoroControls({
             onChange={(e) =>
               onCustomMinutesChange(Math.max(5, parseInt(e.target.value, 10) || 5))
             }
-            className="w-16 rounded-md border bg-background px-2 py-1 text-foreground"
+            className="h-8 w-16"
           />
         </label>
       ) : null}

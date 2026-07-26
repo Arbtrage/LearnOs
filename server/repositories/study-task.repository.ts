@@ -5,7 +5,8 @@ export const studyTaskRepository = {
   async findById(id: string): Promise<
     | (StudyTask & {
         studyPlan: { projectId: string; date: Date; project: { userId: string } };
-        topic: { id: string; title: string; slug: string } | null;
+        topic: { id: string; title: string; slug: string; description: string } | null;
+        resource: { id: string; title: string } | null;
         sessions: Array<{
           id: string;
           completed: boolean;
@@ -21,7 +22,8 @@ export const studyTaskRepository = {
         studyPlan: {
           include: { project: { select: { userId: true } } },
         },
-        topic: { select: { id: true, title: true, slug: true } },
+        topic: { select: { id: true, title: true, slug: true, description: true } },
+        resource: { select: { id: true, title: true } },
         sessions: {
           select: {
             id: true,

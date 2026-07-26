@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Clock, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,31 +32,42 @@ export function TodayBudgetOverride({
   });
 
   return (
-    <form
-      className="flex flex-wrap items-end gap-3 rounded-lg border p-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const data = new FormData(e.currentTarget);
-        const minutes = Number(data.get("budget"));
-        if (Number.isFinite(minutes)) mutation.mutate(minutes);
-      }}
-    >
-      <div className="grid gap-1">
-        <Label htmlFor="budget">Today&apos;s budget (minutes)</Label>
-        <Input
-          id="budget"
-          name="budget"
-          type="number"
-          min={15}
-          max={480}
-          defaultValue={currentMinutes}
-          key={currentMinutes}
-          className="w-32"
-        />
-      </div>
-      <Button size="sm" type="submit" disabled={mutation.isPending}>
-        Apply override
-      </Button>
-    </form>
+    <section className="overflow-hidden rounded-xl border bg-card/70 shadow-sm">
+      <header className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
+        <SlidersHorizontal className="size-4 text-muted-foreground" aria-hidden="true" />
+        <div>
+          <h3 className="font-medium">Daily budget</h3>
+          <p className="text-xs text-muted-foreground">Adjust today&apos;s study time</p>
+        </div>
+      </header>
+      <form
+        className="space-y-4 p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const data = new FormData(e.currentTarget);
+          const minutes = Number(data.get("budget"));
+          if (Number.isFinite(minutes)) mutation.mutate(minutes);
+        }}
+      >
+        <div className="grid gap-2">
+          <Label htmlFor="budget" className="flex items-center gap-1.5 text-xs">
+            <Clock className="size-3.5" aria-hidden="true" />
+            Minutes for today
+          </Label>
+          <Input
+            id="budget"
+            name="budget"
+            type="number"
+            min={15}
+            max={480}
+            defaultValue={currentMinutes}
+            key={currentMinutes}
+          />
+        </div>
+        <Button size="sm" type="submit" className="w-full" disabled={mutation.isPending}>
+          Apply override
+        </Button>
+      </form>
+    </section>
   );
 }

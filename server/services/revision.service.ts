@@ -210,4 +210,63 @@ export class RevisionService {
   static async bumpPriorityForProject(userId: string, projectId: string) {
     await revisionCardRepository.bumpPriorityForProject(userId, projectId);
   }
+
+  static async listAllByProject(
+    userId: string,
+    projectId: string,
+    filters?: { topicId?: string; dueOnly?: boolean; q?: string },
+  ) {
+    const project = await projectRepository.findById(projectId);
+    if (!project || project.userId !== userId) throw new Error("Project not found");
+
+    const cards = await revisionCardRepository.listAllByProject(
+      userId,
+      projectId,
+      filters,
+    );
+    return cards.map(toDto);
+  }
+
+  static async updateCard(
+    userId: string,
+    cardId: string,
+    input: { front?: string; back?: string; topicId?: string },
+  ) {
+    const card = await revisionCardRepository.findById(cardId);
+    if (!card || card.userId !== userId) throw new Error("Card not found");
+
+    if (card.source === "PRACTICE" && card.questionId) {
+      if (input.front !== undefined && input.front !== card.front) {
+        throw new Error("Cannot edit front of practice-generated cards");
+      }
+    }
+
+    if (input.topicId) {
+      const { topicRepository } = await import("@/server/repositories/topic.repository");
+      const topic = await topicRepository.findById(input.topicId);
+      if (!topic || topic.projectId !== card.topic.projectId) {
+        throw new Error("Invalid topic");
+      }
+    }
+
+    const updated = await revisionCardRepository.update(cardId, {
+      front: input.front,
+      back: input.back,
+      topicId: input.topicId,
+    });
+
+    return toDto({ ...updated, topic: updated.topic });
+  }
+
+  static async deleteCard(userId: string, cardId: string) {
+    const card = await revisionCardRepository.findById(cardId);
+    if (!card || card.userId !== userId) throw new Error("Card not found");
+
+    if (card.source === "PRACTICE" && card.questionId) {
+      throw new Error("Practice-generated cards cannot be deleted");
+    }
+
+    await revisionCardRepository.delete(cardId);
+    return { id: cardId };
+  }
 }

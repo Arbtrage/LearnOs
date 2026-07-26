@@ -21,12 +21,12 @@ export function MarketingNav() {
           <a href="#faq" className="hover:text-foreground">FAQ</a>
         </nav>
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/login" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <Link href="/login" className={buttonVariants({ variant: "ghost" })}>
             Sign in
           </Link>
           <Link
             href="/signup"
-            className={cn(buttonVariants({ size: "sm" }), "gradient-primary text-primary-foreground")}
+            className={cn(buttonVariants(), "gradient-primary text-primary-foreground")}
           >
             Get started
           </Link>
@@ -45,7 +45,7 @@ export function MarketingNav() {
             <Link href="/login" className="pt-2">Sign in</Link>
             <Link
               href="/signup"
-              className={cn(buttonVariants({ size: "sm" }), "gradient-primary text-primary-foreground w-fit")}
+              className={cn(buttonVariants(), "gradient-primary text-primary-foreground w-fit")}
             >
               Get started
             </Link>

@@ -82,6 +82,7 @@ export type TopicContentDto = {
   topicId: string;
   title: string;
   bodyMarkdown: string;
+  order?: number;
   sourceTopicHash: string;
   isStale: boolean;
 };
@@ -140,6 +141,17 @@ export const resourceRankAiSchema = z.object({
   ),
 });
 
+export const topicLessonSectionSchema = z.object({
+  title: z.string().min(3).max(120),
+  bodyMarkdown: z.string().min(250).max(4000),
+  order: z.number().int().min(0).max(2),
+});
+
+export const topicLessonSectionsSchema = z.object({
+  sections: z.array(topicLessonSectionSchema).min(2).max(3),
+});
+
+/** @deprecated Legacy single-blob schema — use topicLessonSectionsSchema */
 export const topicLessonAiSchema = z.object({
   title: z.string().min(1).max(200),
   bodyMarkdown: z.string().min(100).max(8000),

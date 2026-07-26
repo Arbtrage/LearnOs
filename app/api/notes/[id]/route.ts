@@ -3,6 +3,27 @@ import { auth } from "@/lib/auth";
 import { NoteService } from "@/server/services/note.service";
 import { updateNoteSchema } from "@/types/notes";
 
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await context.params;
+
+  try {
+    const note = await NoteService.get(session.user.id, id);
+    return NextResponse.json(note);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load note";
+    const status = message === "Note not found" ? 404 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },

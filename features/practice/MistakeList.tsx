@@ -30,7 +30,11 @@ export function MistakeList({ mistakes, onResolve, onRetry, retrying }: MistakeL
                 <p className="text-xs text-muted-foreground">{m.topicTitle}</p>
                 <p className="font-medium text-sm">{m.prompt}</p>
               </div>
-              <Button size="sm" variant="ghost" onClick={() => onResolve(m.id)}>
+              <Button
+                variant="ghost"
+                className="shrink-0 self-center"
+                onClick={() => onResolve(m.id)}
+              >
                 Resolve
               </Button>
             </div>

@@ -42,3 +42,15 @@ export const createRevisionCardSchema = z.object({
 export const reviewRevisionCardSchema = z.object({
   quality: z.number().int().min(1).max(4),
 });
+
+export const listRevisionCardsSchema = z.object({
+  topicId: z.string().optional(),
+  dueOnly: z.coerce.boolean().optional(),
+  q: z.string().max(200).optional(),
+});
+
+export const updateRevisionCardSchema = z.object({
+  topicId: z.string().optional(),
+  front: z.string().min(1).max(2000).optional(),
+  back: z.string().min(1).max(5000).optional(),
+});

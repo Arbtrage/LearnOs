@@ -2,25 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { X } from "lucide-react";
 import { LoadingState } from "@/components/common/LoadingState";
-import { Button } from "@/components/ui/button";
-import { ManualProgressAdjust } from "@/features/progress/ManualProgressAdjust";
-import { ProgressRing } from "@/features/roadmap/ProgressRing";
 import {
-  ConfidenceBadge,
-  TopicStatusBadge,
-} from "@/features/topics/TopicBadges";
-import { ObjectiveList } from "@/features/resources/ObjectiveList";
-import { ResourceCard } from "@/features/resources/ResourceCard";
-import { PracticeSetCard } from "@/features/practice/PracticeSetCard";
+  NavigationOverlay,
+  useNavigateWithLoading,
+} from "@/components/common/PendingButton";
+import { TopicDetailHero } from "@/features/topics/TopicDetailHero";
+import { TopicStudyReader } from "@/features/topics/TopicStudyReader";
+import { TopicStudySidebar } from "@/features/topics/TopicStudySidebar";
+import { parseApiError } from "@/lib/api/parse-error";
 import type { ObjectiveDto, ResourceDto, TopicContentDto } from "@/types/resources";
 import type { PracticeSetDto } from "@/types/practice";
-import { useRouter } from "next/navigation";
 import type { TopicDetailDto } from "@/types/roadmap";
-import { TopicContentViewer } from "@/features/resources/TopicContentViewer";
 
 type TopicDetailPageProps = {
   topicId: string;
@@ -35,6 +31,12 @@ export function TopicDetailPage({
 }: TopicDetailPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isNavigating, navigate } = useNavigateWithLoading(router);
+  const enrichBootstrappedRef = React.useRef(false);
+  const [practiceError, setPracticeError] = React.useState<string | null>(null);
+  const [startingPracticeSetId, setStartingPracticeSetId] = React.useState<
+    string | null
+  >(null);
 
   const detailQuery = useQuery({
     queryKey: ["topic", topicId],
@@ -42,16 +44,6 @@ export function TopicDetailPage({
       const res = await fetch(`/api/topics/${topicId}`);
       if (!res.ok) throw new Error("Failed to load topic");
       return res.json() as Promise<TopicDetailDto>;
-    },
-  });
-
-  const summaryQuery = useQuery({
-    queryKey: ["topic-summary", topicId],
-    enabled: Boolean(detailQuery.data && !detailQuery.data.aiSummary),
-    queryFn: async () => {
-      const res = await fetch(`/api/topics/${topicId}/summary`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed to generate summary");
-      return res.json() as Promise<{ summary: string }>;
     },
   });
 
@@ -92,12 +84,20 @@ export function TopicDetailPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ count: 10 }),
       });
-      if (!res.ok) throw new Error("Generation failed");
+      if (!res.ok) {
+        throw new Error(await parseApiError(res, "Generation failed"));
+      }
       return res.json();
     },
     onSuccess: () => {
+      setPracticeError(null);
       void queryClient.invalidateQueries({ queryKey: ["practice-sets", topicId] });
       void queryClient.invalidateQueries({ queryKey: ["practice", projectId] });
+    },
+    onError: (error) => {
+      setPracticeError(
+        error instanceof Error ? error.message : "Could not generate questions",
+      );
     },
   });
 
@@ -109,15 +109,49 @@ export function TopicDetailPage({
         body: JSON.stringify({
           topicId,
           practiceSetId: set.id,
-          questionCount: Math.min(10, set.questionCount),
+          questionCount: Math.min(10, Math.max(set.questionCount, 1)),
         }),
       });
-      if (!res.ok) throw new Error("Failed to start practice");
+      if (!res.ok) {
+        throw new Error(await parseApiError(res, "Failed to start practice"));
+      }
       const data = (await res.json()) as { attempt: { id: string } };
       return data.attempt.id;
     },
     onSuccess: (attemptId) => {
-      router.push(`/projects/${projectSlug}/practice/${attemptId}`);
+      setPracticeError(null);
+      navigate(`/projects/${projectSlug}/practice/${attemptId}`);
+    },
+    onError: (error) => {
+      setPracticeError(
+        error instanceof Error ? error.message : "Could not start practice",
+      );
+    },
+    onSettled: () => setStartingPracticeSetId(null),
+  });
+
+  const markCompleteMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/topics/${topicId}/progress`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completion: 100 }),
+      });
+      if (!res.ok) {
+        throw new Error(await parseApiError(res, "Failed to mark topic complete"));
+      }
+      return res.json() as Promise<{ status: string }>;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["topic", topicId] });
+      await queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
+      await queryClient.invalidateQueries({ queryKey: ["roadmap", projectId] });
+
+      const refreshed = await detailQuery.refetch();
+      const next = refreshed.data?.nextRecommended;
+      if (next) {
+        navigate(`/projects/${projectSlug}/topics/${next.slug}`);
+      }
     },
   });
 
@@ -162,22 +196,47 @@ export function TopicDetailPage({
     },
   });
 
-  const resourceProgressMutation = useMutation({
-    mutationFn: async (resourceId: string) => {
-      const res = await fetch(`/api/resources/${resourceId}/progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
-      });
-      if (!res.ok) throw new Error("Failed to update resource");
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["resources", projectId, topicId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["topic", topicId] });
-    },
-  });
+  React.useEffect(() => {
+    if (enrichBootstrappedRef.current) return;
+    if (!objectivesQuery.isFetched || !topicContentQuery.isFetched) return;
+
+    const needsEnrichment =
+      (objectivesQuery.data?.length ?? 0) === 0 ||
+      (topicContentQuery.data?.length ?? 0) === 0;
+
+    if (!needsEnrichment) return;
+
+    enrichBootstrappedRef.current = true;
+    void discoverMutation.mutateAsync().catch(() => {
+      enrichBootstrappedRef.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    objectivesQuery.isFetched,
+    objectivesQuery.data,
+    topicContentQuery.isFetched,
+    topicContentQuery.data,
+  ]);
+
+  function handleMarkComplete() {
+    const objectives = objectivesQuery.data ?? [];
+    const hasIncomplete = objectives.some((objective) => !objective.completed);
+    if (
+      hasIncomplete &&
+      !window.confirm(
+        "Some checklist items are not done yet. Mark this topic complete anyway?",
+      )
+    ) {
+      return;
+    }
+    markCompleteMutation.mutate();
+  }
+
+  function handleStartPractice(set: PracticeSetDto) {
+    setPracticeError(null);
+    setStartingPracticeSetId(set.id);
+    startPracticeMutation.mutate(set);
+  }
 
   if (detailQuery.isLoading) {
     return <LoadingState label="Loading topic..." />;
@@ -192,200 +251,96 @@ export function TopicDetailPage({
   }
 
   const topic = detailQuery.data;
-  const summary = topic.aiSummary ?? summaryQuery.data?.summary;
+  const topicContent = topicContentQuery.data ?? [];
+  const isGeneratingContent =
+    discoverMutation.isPending || topicContentQuery.isLoading;
+  const canMarkComplete =
+    topic.status !== "LOCKED" && topic.completion < 100 && topic.status !== "COMPLETED";
 
   return (
-    <div className="space-y-8">
-      <div>
-        <Link
-          href={`/projects/${projectSlug}/topics`}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+    <div className="space-y-6">
+      <NavigationOverlay
+        visible={isNavigating || markCompleteMutation.isPending}
+        label={
+          markCompleteMutation.isPending
+            ? "Unlocking next topic…"
+            : "Opening practice…"
+        }
+      />
+
+      <TopicDetailHero
+        topic={topic}
+        projectSlug={projectSlug}
+        canMarkComplete={canMarkComplete}
+        markingComplete={markCompleteMutation.isPending}
+        onMarkComplete={handleMarkComplete}
+      />
+
+      {practiceError ? (
+        <div
+          className="flex items-start justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          role="alert"
         >
-          <ArrowLeft className="size-4" />
-          Back to topics
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <TopicStatusBadge status={topic.status} />
-              <ConfidenceBadge value={topic.confidence} />
-            </div>
-            <h1 className="text-2xl font-semibold">{topic.title}</h1>
-            <p className="max-w-2xl text-muted-foreground">{topic.description}</p>
-          </div>
-          <ProgressRing value={topic.completion} size={64} />
+          <span>{practiceError}</span>
+          <button
+            type="button"
+            className="shrink-0 text-destructive/80 hover:text-destructive"
+            onClick={() => setPracticeError(null)}
+            aria-label="Dismiss error"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
         </div>
+      ) : null}
+
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 rounded-2xl border bg-card/40 p-4 sm:p-6">
+          <TopicStudyReader
+            items={topicContent}
+            isLoading={isGeneratingContent}
+            emptyMessage="Study guide is not ready yet. Materials will generate automatically."
+          />
+        </div>
+
+        <TopicStudySidebar
+          topic={topic}
+          projectSlug={projectSlug}
+          objectives={objectivesQuery.data ?? []}
+          objectivesLoading={objectivesQuery.isLoading || discoverMutation.isPending}
+          onToggleObjective={(id) => objectiveToggleMutation.mutate(id)}
+          togglingObjectiveId={
+            objectiveToggleMutation.isPending
+              ? (objectiveToggleMutation.variables ?? null)
+              : null
+          }
+          resources={resourcesQuery.data ?? []}
+          resourcesLoading={resourcesQuery.isLoading}
+          practiceSets={practiceSetsQuery.data ?? []}
+          practiceLoading={practiceSetsQuery.isLoading}
+          onRefreshMaterials={() => discoverMutation.mutate()}
+          refreshingMaterials={discoverMutation.isPending}
+          onGenerateQuestions={() => generateQuestionsMutation.mutate()}
+          generatingQuestions={generateQuestionsMutation.isPending}
+          onStartPractice={handleStartPractice}
+          startingPracticeSetId={startingPracticeSetId}
+        />
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-4 rounded-xl border p-4">
-          <h2 className="font-medium">Progress</h2>
-          <ManualProgressAdjust topicId={topic.id} locked={topic.status === "LOCKED"} />
-        </div>
-
-        <div className="space-y-4 rounded-xl border p-4">
-          <h2 className="font-medium">Dependencies</h2>
-          {topic.dependencies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No prerequisites.</p>
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {topic.dependencies.map((dep) => (
-                <li key={dep.id}>
-                  <Link
-                    href={`/projects/${projectSlug}/topics/${dep.slug}`}
-                    className="hover:text-primary"
-                  >
-                    {dep.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-xl border p-4">
-        <h2 className="mb-3 font-medium">AI Summary</h2>
-        {summaryQuery.isLoading && !summary ? (
-          <LoadingState label="Generating summary..." size="sm" />
-        ) : summary ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{summary}</ReactMarkdown>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Summary will appear here once generated.
-          </p>
-        )}
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-4 rounded-xl border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-medium">Learning objectives</h2>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={discoverMutation.isPending}
-              onClick={() => discoverMutation.mutate()}
-            >
-              {discoverMutation.isPending ? "Discovering..." : "Discover resources"}
-            </Button>
-          </div>
-          {objectivesQuery.isLoading ? (
-            <LoadingState label="Loading objectives..." size="sm" />
-          ) : (
-            <ObjectiveList
-              objectives={objectivesQuery.data ?? []}
-              onToggle={(id) => objectiveToggleMutation.mutate(id)}
-              togglingId={
-                objectiveToggleMutation.isPending
-                  ? (objectiveToggleMutation.variables ?? null)
-                  : null
-              }
-            />
-          )}
-        </div>
-
-        <div className="space-y-4 rounded-xl border p-4">
-          <h2 className="font-medium">Verified resources</h2>
-          {resourcesQuery.isLoading ? (
-            <LoadingState label="Loading resources..." size="sm" />
-          ) : (resourcesQuery.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No verified resources yet. We only show links that pass HTTP verification.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {(resourcesQuery.data ?? []).map((resource) => (
-                <ResourceCard
-                  key={resource.id}
-                  resource={resource}
-                  onMarkComplete={(id) => resourceProgressMutation.mutate(id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {(topicContentQuery.data ?? []).length > 0 ? (
-        <section className="rounded-xl border p-4">
-          <h2 className="mb-3 font-medium">LearnOS lesson</h2>
-          {topicContentQuery.isLoading ? (
-            <LoadingState label="Loading lesson..." size="sm" />
-          ) : (
-            <TopicContentViewer items={topicContentQuery.data ?? []} />
-          )}
-        </section>
-      ) : null}
-
-      <section className="rounded-xl border p-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="font-medium">Practice</h2>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={generateQuestionsMutation.isPending}
-            onClick={() => generateQuestionsMutation.mutate()}
-          >
-            {generateQuestionsMutation.isPending ? "Generating..." : "Generate questions"}
-          </Button>
-        </div>
-        {practiceSetsQuery.isLoading ? (
-          <LoadingState label="Loading practice sets..." size="sm" />
-        ) : (practiceSetsQuery.data ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No practice sets yet. Generate questions to start a drill.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {(practiceSetsQuery.data ?? []).map((set) => (
-              <PracticeSetCard
-                key={set.id}
-                set={set}
-                starting={startPracticeMutation.isPending}
-                onStart={(s) => startPracticeMutation.mutate(s)}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="rounded-xl border p-4 space-y-3">
-        <h3 className="font-medium">Notes</h3>
-        <p className="text-sm text-muted-foreground">
-          Capture notes in focus mode or on the{" "}
-          <Link href={`/projects/${projectSlug}/notes`} className="text-primary hover:underline">
-            Notes page
-          </Link>
-          .
-        </p>
-      </section>
-
-      <section className="rounded-xl border p-4 space-y-3">
-        <h3 className="font-medium">Revision</h3>
-        <p className="text-sm text-muted-foreground">
-          Wrong answers auto-create revision cards. Review due cards on the{" "}
-          <Link href={`/projects/${projectSlug}/revision`} className="text-primary hover:underline">
-            Revision page
-          </Link>
-          .
-        </p>
-      </section>
-
-      {topic.nextRecommended ? (
-        <div className="rounded-xl border bg-muted/20 p-4">
-          <p className="text-sm text-muted-foreground">Next recommended</p>
-          <Link
-            href={`/projects/${projectSlug}/topics/${topic.nextRecommended.slug}`}
-            className="mt-1 inline-flex items-center gap-1 font-medium hover:text-primary"
-          >
-            {topic.nextRecommended.title}
-            <ArrowRight className="size-4" />
-          </Link>
-        </div>
-      ) : null}
+      <footer className="border-t pt-4 text-sm text-muted-foreground">
+        <Link
+          href={`/projects/${projectSlug}/notes?topicId=${topic.id}`}
+          className="hover:text-foreground hover:underline"
+        >
+          Notes
+        </Link>
+        <span className="mx-2">·</span>
+        <Link
+          href={`/projects/${projectSlug}/revision?topicId=${topic.id}`}
+          className="hover:text-foreground hover:underline"
+        >
+          Flashcards
+        </Link>
+      </footer>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { dashboard, semantic } from "@/constants/design";
+import { semantic } from "@/constants/design";
 import { cn } from "@/lib/utils";
 
 type MetricCardProps = {
@@ -16,6 +16,7 @@ type MetricCardProps = {
   subtitle?: string;
   icon?: React.ComponentType<{ className?: string }>;
   iconBox?: string;
+  accent?: string;
 };
 
 export function MetricCard({
@@ -24,21 +25,31 @@ export function MetricCard({
   subtitle,
   icon: Icon,
   iconBox = semantic.iconBoxPrimary,
+  accent,
 }: MetricCardProps) {
   return (
-    <div className={dashboard.statCard}>
-      {Icon ? (
-        <div className={iconBox}>
-          <Icon className="size-5" />
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-xl border bg-card/70 p-5 shadow-sm backdrop-blur-sm transition-shadow hover:shadow-md",
+        accent,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
+            {value}
+          </p>
+          {subtitle ? (
+            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+          ) : null}
         </div>
-      ) : null}
-      <p className={cn(Icon ? "mt-4" : "", "text-sm font-medium text-muted-foreground")}>
-        {title}
-      </p>
-      <p className="text-2xl font-semibold">{value}</p>
-      {subtitle ? (
-        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
-      ) : null}
+        {Icon ? (
+          <div className={iconBox}>
+            <Icon className="size-5" />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -53,10 +64,10 @@ export function LearningHealthCard({ score, sparkline = [] }: LearningHealthCard
   const max = Math.max(...bars, 1);
 
   return (
-    <Card className="border-border/80 shadow-sm">
+    <Card className="overflow-hidden border bg-card shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-3">
-          <div className={semantic.iconBoxSuccess}>
+          <div className={semantic.iconBoxPrimary}>
             <HeartPulse className="size-5" />
           </div>
           <CardTitle className="text-sm font-medium">Learning health</CardTitle>
@@ -64,16 +75,16 @@ export function LearningHealthCard({ score, sparkline = [] }: LearningHealthCard
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-end justify-between">
-          <span className="text-3xl font-semibold">{score}%</span>
-          <span className="text-xs text-muted-foreground">Auto-derived</span>
+          <span className="text-3xl font-semibold tabular-nums">{score}%</span>
+          <span className="text-xs text-muted-foreground">7-day trend</span>
         </div>
         <Progress value={score} className="h-2" />
-        <div className="flex h-8 items-end gap-1" aria-hidden="true">
+        <div className="flex h-10 items-end gap-1" aria-hidden="true">
           {bars.map((h, i) => (
             <div
               key={i}
-              className="flex-1 rounded-sm bg-primary/30"
-              style={{ height: `${Math.max(8, (h / max) * 100)}%` }}
+              className="flex-1 rounded-sm bg-primary/35 transition-all"
+              style={{ height: `${Math.max(12, (h / max) * 100)}%` }}
             />
           ))}
         </div>
@@ -112,7 +123,7 @@ export function DashboardCard({ type, config, metrics }: DashboardCardProps) {
           value={metrics.todayTasks}
           subtitle="Scheduled for today"
           icon={Activity}
-          iconBox={semantic.iconBoxAccent}
+          iconBox={semantic.iconBoxPrimary}
         />
       );
     case "milestone":
@@ -132,7 +143,7 @@ export function DashboardCard({ type, config, metrics }: DashboardCardProps) {
           value={`${metrics.studyStreak} days`}
           subtitle="Keep the momentum going"
           icon={Flame}
-          iconBox={semantic.iconBoxWarning}
+          iconBox={semantic.iconBoxPrimary}
         />
       );
     case "revision":
@@ -142,7 +153,7 @@ export function DashboardCard({ type, config, metrics }: DashboardCardProps) {
           value={metrics.revisionDue}
           subtitle="Cards due today"
           icon={Target}
-          iconBox={semantic.iconBoxSuccess}
+          iconBox={semantic.iconBoxPrimary}
         />
       );
     case "readiness":

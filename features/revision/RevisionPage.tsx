@@ -1,22 +1,28 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Play } from "lucide-react";
 import { LoadingState } from "@/components/common/LoadingState";
-import { PageHeader } from "@/components/common/PageHeader";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PendingButton } from "@/components/common/PendingButton";
+import { FlashcardLibrary } from "@/features/revision/FlashcardLibrary";
+import { RevisionHero } from "@/features/revision/RevisionHero";
 import { WorkspaceEmptyState } from "@/features/workspace/WorkspaceEmptyState";
-import type { RevisionQueueDto } from "@/types/revision";
+import { workspace } from "@/constants/design";
+import type { RevisionCardDto, RevisionQueueDto } from "@/types/revision";
+import type { TopicDto } from "@/types/roadmap";
 
 type RevisionPageProps = {
   projectId: string;
   projectSlug: string;
 };
 
-export function RevisionPage({ projectId, projectSlug }: RevisionPageProps) {
+function RevisionPageContent({ projectId, projectSlug }: RevisionPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const topicFilter = searchParams.get("topicId") ?? undefined;
 
   const revisionQuery = useQuery({
     queryKey: ["revision", projectId],
@@ -27,7 +33,40 @@ export function RevisionPage({ projectId, projectSlug }: RevisionPageProps) {
     },
   });
 
-  if (revisionQuery.isLoading) return <LoadingState label="Loading revision..." />;
+  const cardsQuery = useQuery({
+    queryKey: ["revision-cards", projectId, topicFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (topicFilter) params.set("topicId", topicFilter);
+      const qs = params.toString();
+      const res = await fetch(
+        `/api/projects/${projectId}/revision/cards${qs ? `?${qs}` : ""}`,
+      );
+      if (!res.ok) throw new Error("Failed to load cards");
+      const data = (await res.json()) as { cards: RevisionCardDto[] };
+      return data.cards;
+    },
+  });
+
+  const topicsQuery = useQuery({
+    queryKey: ["topics", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${projectId}/topics`);
+      if (!res.ok) throw new Error("Failed to load topics");
+      const data = (await res.json()) as { topics: TopicDto[] };
+      return data.topics;
+    },
+  });
+
+  function refreshAll() {
+    void queryClient.invalidateQueries({ queryKey: ["revision", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["revision-cards", projectId] });
+  }
+
+  if (revisionQuery.isLoading || cardsQuery.isLoading) {
+    return <LoadingState label="Loading flashcards..." />;
+  }
+
   if (revisionQuery.error || !revisionQuery.data) {
     return (
       <WorkspaceEmptyState
@@ -37,68 +76,48 @@ export function RevisionPage({ projectId, projectSlug }: RevisionPageProps) {
     );
   }
 
-  const { dueToday, upcoming, stats } = revisionQuery.data;
+  const { dueToday, stats } = revisionQuery.data;
+  const cards = cardsQuery.data ?? [];
+  const topics = topicsQuery.data ?? [];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Revision"
-        description="Spaced repetition queue — review cards due today to strengthen retention."
-      />
+      <RevisionHero stats={stats} projectSlug={projectSlug} />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Due today</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{stats.dueCount}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total cards</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{stats.totalCards}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">7-day retention</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{stats.retentionRate7d}%</p>
-          </CardContent>
-        </Card>
+      <div className={workspace.sectionCard}>
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div>
+            <p className="font-medium">Review session</p>
+            <p className="text-sm text-muted-foreground">
+              {dueToday.length > 0
+                ? `${dueToday.length} card${dueToday.length === 1 ? "" : "s"} due today`
+                : "No cards due today — you're caught up."}
+            </p>
+          </div>
+          <PendingButton
+            disabled={dueToday.length === 0}
+            onClick={() => router.push(`/projects/${projectSlug}/revision/session`)}
+          >
+            <Play className="size-4" aria-hidden="true" />
+            {dueToday.length > 0 ? `Review ${dueToday.length} cards` : "Start review"}
+          </PendingButton>
+        </div>
       </div>
 
-      {dueToday.length > 0 ? (
-        <Button
-          onClick={() => router.push(`/projects/${projectSlug}/revision/session`)}
-        >
-          Start review session ({dueToday.length} cards)
-        </Button>
-      ) : (
-        <p className="text-sm text-muted-foreground">No cards due today. Great work!</p>
-      )}
-
-      {upcoming.length > 0 ? (
-        <div className="space-y-2">
-          <h2 className="font-medium">Upcoming</h2>
-          <ul className="space-y-2">
-            {upcoming.slice(0, 5).map((card) => (
-              <li key={card.id} className="rounded-lg border p-3 text-sm">
-                <p className="font-medium">{card.topicTitle}</p>
-                <p className="text-muted-foreground line-clamp-1">{card.front}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Due {new Date(card.nextReviewAt).toLocaleDateString()}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <FlashcardLibrary
+        cards={cards}
+        topics={topics.map((t) => ({ id: t.id, title: t.title }))}
+        topicFilter={topicFilter}
+        onRefresh={refreshAll}
+      />
     </div>
+  );
+}
+
+export function RevisionPage(props: RevisionPageProps) {
+  return (
+    <Suspense fallback={<LoadingState label="Loading flashcards..." />}>
+      <RevisionPageContent {...props} />
+    </Suspense>
   );
 }

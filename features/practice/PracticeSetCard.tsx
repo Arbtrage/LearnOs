@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { PendingButton } from "@/components/common/PendingButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PracticeSetDto } from "@/types/practice";
 
@@ -11,6 +11,8 @@ type PracticeSetCardProps = {
 };
 
 export function PracticeSetCard({ set, onStart, starting }: PracticeSetCardProps) {
+  const canStart = set.questionCount > 0;
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -25,10 +27,18 @@ export function PracticeSetCard({ set, onStart, starting }: PracticeSetCardProps
           {set.lastScorePercent !== null ? (
             <span className="ml-2">Last score: {set.lastScorePercent}%</span>
           ) : null}
+          {!canStart ? (
+            <p className="mt-1 text-xs">Generate questions first.</p>
+          ) : null}
         </div>
-        <Button size="sm" disabled={starting} onClick={() => onStart(set)}>
+        <PendingButton
+          pending={starting}
+          pendingLabel="Starting…"
+          disabled={!canStart}
+          onClick={() => onStart(set)}
+        >
           Start drill
-        </Button>
+        </PendingButton>
       </CardContent>
     </Card>
   );

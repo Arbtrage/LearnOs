@@ -99,9 +99,13 @@ export type TaskFocusDto = {
   title: string;
   estimatedMinutes: number;
   status: StudyTaskStatus;
+  taskType: StudyTaskType;
   topicId: string | null;
   topicSlug: string | null;
+  topicTitle: string | null;
+  topicDescription: string | null;
   resourceId: string | null;
+  resourceTitle: string | null;
   activeSession: {
     id: string;
     startedAt: string;

@@ -6,6 +6,8 @@ export const typography = {
   small: "text-sm text-muted-foreground",
   caption: "text-xs text-muted-foreground",
   label: "text-xs font-medium uppercase tracking-widest text-muted-foreground",
+  lessonProse:
+    "prose prose-base dark:prose-invert max-w-none prose-headings:scroll-mt-24 prose-h3:mt-8 prose-h3:text-lg prose-h4:mt-6 prose-p:leading-7 prose-li:my-1 prose-blockquote:border-l-primary prose-blockquote:bg-muted/40 prose-blockquote:py-1 prose-blockquote:not-italic prose-pre:rounded-lg prose-pre:bg-muted prose-code:before:content-none prose-code:after:content-none",
 } as const;
 
 export const spacing = {
@@ -27,11 +29,24 @@ export const marketing = {
 export const dashboard = {
   hero: "text-3xl font-semibold tracking-tight sm:text-4xl",
   heroCard:
-    "relative overflow-hidden rounded-2xl border bg-card p-6 shadow-elegant lg:p-8",
+    "relative overflow-hidden rounded-2xl border bg-card p-6 shadow-sm lg:p-8",
   kpiGrid: "grid grid-cols-2 gap-4 lg:grid-cols-4",
   projectGrid: "grid gap-4 sm:grid-cols-2 xl:grid-cols-3",
   statCard: "rounded-xl border bg-card p-4 shadow-sm",
   contentMax: "mx-auto w-full max-w-6xl",
+} as const;
+
+/** Restrained surfaces for in-app workspace pages (avoid marketing gradients). */
+export const workspace = {
+  pageHero: "rounded-2xl border bg-card shadow-sm",
+  pageHeroInner: "p-6 sm:p-8",
+  statTile: "rounded-xl border bg-muted/20 px-4 py-3",
+  progressTrack: "h-2 overflow-hidden rounded-full bg-muted",
+  progressFill: "h-full rounded-full bg-foreground/70 transition-all duration-500",
+  sectionCard: "rounded-xl border bg-card shadow-sm",
+  iconBox: "grid size-10 place-items-center rounded-lg border border-border bg-muted/30",
+  timelineLine: "bg-border",
+  timelineLineActive: "bg-foreground/35",
 } as const;
 
 export const shell = {
@@ -61,4 +76,11 @@ export const semantic = {
     "flex size-10 items-center justify-center rounded-lg bg-warning/10 text-warning",
   badgeSuccess: "bg-success/10 text-success border-success/20",
   badgeWarning: "bg-warning/10 text-warning border-warning/20",
+} as const;
+
+export const button = {
+  cta: "default",
+  toolbar: "sm",
+  compact: "xs",
+  radius: "rounded-lg",
 } as const;

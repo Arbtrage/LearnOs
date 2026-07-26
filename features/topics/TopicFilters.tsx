@@ -1,5 +1,6 @@
 "use client";
 
+import { Filter } from "lucide-react";
 import type { TopicDifficulty, TopicStatus } from "@/types/roadmap";
 import {
   Select,
@@ -8,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 export type TopicFilterState = {
   status?: TopicStatus;
@@ -20,8 +22,14 @@ type TopicFiltersProps = {
 };
 
 export function TopicFilters({ value, onChange }: TopicFiltersProps) {
+  const hasFilters = Boolean(value.status || value.difficulty);
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        <Filter className="size-3.5" aria-hidden="true" />
+        Filter
+      </span>
       <Select
         value={value.status ?? "all"}
         onValueChange={(next) =>
@@ -31,7 +39,10 @@ export function TopicFilters({ value, onChange }: TopicFiltersProps) {
           })
         }
       >
-        <SelectTrigger className="w-[160px]" aria-label="Filter by status">
+        <SelectTrigger
+          className={cn("w-[168px] bg-card", value.status && "border-foreground/20")}
+          aria-label="Filter by status"
+        >
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -51,7 +62,10 @@ export function TopicFilters({ value, onChange }: TopicFiltersProps) {
           })
         }
       >
-        <SelectTrigger className="w-[160px]" aria-label="Filter by difficulty">
+        <SelectTrigger
+          className={cn("w-[168px] bg-card", value.difficulty && "border-foreground/20")}
+          aria-label="Filter by difficulty"
+        >
           <SelectValue placeholder="Difficulty" />
         </SelectTrigger>
         <SelectContent>
@@ -61,6 +75,15 @@ export function TopicFilters({ value, onChange }: TopicFiltersProps) {
           <SelectItem value="ADVANCED">Advanced</SelectItem>
         </SelectContent>
       </Select>
+      {hasFilters ? (
+        <button
+          type="button"
+          className="text-sm text-primary hover:underline"
+          onClick={() => onChange({})}
+        >
+          Clear filters
+        </button>
+      ) : null}
     </div>
   );
 }

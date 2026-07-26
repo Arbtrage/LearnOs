@@ -11,6 +11,21 @@ import { TopicContentService } from "@/server/services/topic-content.service";
 
 const enrichInFlight = new Set<string>();
 
+async function mapWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>,
+) {
+  const queue = [...items];
+  const workers = Array.from({ length: Math.min(limit, queue.length || 1) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift();
+      if (item) await fn(item);
+    }
+  });
+  await Promise.all(workers);
+}
+
 export class TopicEnrichmentService {
   static async enrichTopic(userId: string, topicId: string) {
     if (enrichInFlight.has(topicId)) {
@@ -35,8 +50,15 @@ export class TopicEnrichmentService {
         await ObjectiveService.generateForTopic(topicId, project.goal);
       }
 
+      const lessonResult = await TopicContentService.ensureLesson(topicId, userId);
+
       if (existingResources >= 2) {
-        return { topicId, resourcesCreated: 0, objectivesCreated: existingObjectives === 0 };
+        return {
+          topicId,
+          resourcesCreated: 0,
+          objectivesCreated: existingObjectives === 0,
+          lessonGenerated: lessonResult.generated,
+        };
       }
 
       const [search, onboarding] = await Promise.all([
@@ -74,10 +96,6 @@ export class TopicEnrichmentService {
         verifiedCandidates,
       });
 
-      if (created.length + existingResources < 1) {
-        await TopicContentService.generateLesson(topicId, project.goal);
-      }
-
       if (created.length === 0 && verifiedCandidates.length > 0) {
         created = await ResourceService.ingestVerifiedCandidates({
           projectId: project.id,
@@ -99,6 +117,7 @@ export class TopicEnrichmentService {
         topicId,
         resourcesCreated: created.length,
         objectivesCreated: existingObjectives === 0,
+        lessonGenerated: lessonResult.generated,
       };
     } finally {
       enrichInFlight.delete(topicId);
@@ -110,14 +129,13 @@ export class TopicEnrichmentService {
     if (!project || project.userId !== userId) return;
 
     const topics = await topicRepository.listByProjectId(projectId);
-    const batch = topics.slice(0, 10);
 
-    for (const topic of batch) {
+    await mapWithConcurrency(topics, 2, async (topic) => {
       try {
         await TopicEnrichmentService.enrichTopic(userId, topic.id);
       } catch (error) {
         console.warn("[topic-enrichment]", topic.id, error);
       }
-    }
+    });
   }
 }

@@ -10,12 +10,18 @@ import { combineSystem } from "@/lib/ai/prompts/parts";
 import { getAIProvider } from "@/lib/ai/providers/gemini";
 import { conversationRepository } from "@/server/repositories/conversation.repository";
 import { interviewAnswerRepository } from "@/server/repositories/interview-answer.repository";
+import { objectiveRepository } from "@/server/repositories/objective.repository";
+import { topicRepository } from "@/server/repositories/topic.repository";
 import { BlueprintService } from "@/server/services/blueprint.service";
 import { ProjectService } from "@/server/services/project.service";
+import { SessionService } from "@/server/services/session.service";
 
 const bodySchema = z.object({
   messages: z.array(z.custom<UIMessage>()),
   section: z.string().optional(),
+  taskId: z.string().optional(),
+  topicId: z.string().optional(),
+  incompleteObjectives: z.array(z.string()).optional(),
 });
 
 export async function POST(
@@ -61,6 +67,60 @@ export async function POST(
       }))
     : [];
 
+  let focusTaskTitle: string | undefined;
+  let focusTaskType: string | undefined;
+  let focusResourceTitle: string | undefined;
+  let focusTopicId = parsed.data.topicId;
+
+  if (parsed.data.taskId) {
+    try {
+      const focus = await SessionService.getTaskFocus(
+        session.user.id,
+        parsed.data.taskId,
+      );
+      focusTaskTitle = focus.title;
+      focusTaskType = focus.taskType;
+      focusResourceTitle = focus.resourceTitle ?? undefined;
+      focusTopicId = focusTopicId ?? focus.topicId ?? undefined;
+    } catch {
+      // Ignore invalid task context.
+    }
+  }
+
+  let focusTopicTitle: string | undefined;
+  let focusTopicDescription: string | undefined;
+  let incompleteObjectives = parsed.data.incompleteObjectives ?? [];
+
+  if (focusTopicId) {
+    const topic = await topicRepository.findById(focusTopicId);
+    if (topic && topic.projectId === project.id) {
+      focusTopicTitle = topic.title;
+      focusTopicDescription = topic.description.slice(0, 400);
+
+      if (incompleteObjectives.length === 0) {
+        const objectives = await objectiveRepository.listByTopic(
+          focusTopicId,
+          session.user.id,
+        );
+        incompleteObjectives = objectives
+          .filter((objective) => objective.progress.length === 0)
+          .map((objective) => objective.title);
+      }
+    }
+  }
+
+  if (!focusResourceTitle && parsed.data.taskId) {
+    try {
+      const focus = await SessionService.getTaskFocus(
+        session.user.id,
+        parsed.data.taskId,
+      );
+      focusResourceTitle = focus.resourceTitle ?? undefined;
+    } catch {
+      // Ignore.
+    }
+  }
+
   const parts = buildMentorPrompt({
     title: project.title,
     goal: project.goal,
@@ -69,6 +129,12 @@ export async function POST(
     currentMilestone: blueprint?.stages[0]?.title,
     section: parsed.data.section,
     interviewAnswers,
+    focusTaskTitle,
+    focusTaskType,
+    focusTopicTitle,
+    focusTopicDescription,
+    focusResourceTitle,
+    incompleteObjectives,
   });
 
   const { messages, truncated } = truncateChatHistory(parsed.data.messages);

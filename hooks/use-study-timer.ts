@@ -131,9 +131,13 @@ export function useStudyTimer({
         setPomodoroPhase("BREAK");
         setPomodoroCycle(nextCycle);
       }
-    } else {
-      setPomodoroPhase("WORK");
+      setElapsedSeconds(0);
+      setIsRunning(false);
+      setIsPaused(true);
+      return;
     }
+
+    setPomodoroPhase("WORK");
     setElapsedSeconds(0);
     setIsRunning(true);
     setIsPaused(false);

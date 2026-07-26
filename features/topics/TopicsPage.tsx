@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Network, LayoutGrid } from "lucide-react";
 import { LoadingState } from "@/components/common/LoadingState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KnowledgeGraph } from "@/features/topics/KnowledgeGraph";
-import { TopicCard } from "@/features/topics/TopicCard";
+import { TopicsHero } from "@/features/topics/TopicsHero";
+import { TopicsModuleView } from "@/features/topics/TopicsModuleView";
 import {
   TopicFilters,
   type TopicFilterState,
@@ -54,7 +56,7 @@ export function TopicsPage({ projectId, projectSlug }: TopicsPageProps) {
     );
   }
 
-  if (data.topics.length === 0) {
+  if (data.topics.length === 0 && !filters.status && !filters.difficulty) {
     return (
       <WorkspaceEmptyState
         title="No topics yet"
@@ -64,26 +66,36 @@ export function TopicsPage({ projectId, projectSlug }: TopicsPageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <PageHeader
         title="Topics"
-        description="Browse your curriculum as a grid or explore prerequisites in the knowledge graph."
+        description="Explore your curriculum by learning module or map prerequisite connections."
       />
-      <TopicFilters value={filters} onChange={setFilters} />
-      <Tabs defaultValue="grid">
-        <TabsList>
-          <TabsTrigger value="grid">Grid</TabsTrigger>
-          <TabsTrigger value="graph">Graph</TabsTrigger>
+
+      <TopicsHero topics={data.topics} />
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <TopicFilters value={filters} onChange={setFilters} />
+      </div>
+
+      <Tabs defaultValue="modules">
+        <TabsList className="h-10">
+          <TabsTrigger value="modules" className="gap-2">
+            <LayoutGrid className="size-3.5" aria-hidden="true" />
+            Modules
+          </TabsTrigger>
+          <TabsTrigger value="graph" className="gap-2">
+            <Network className="size-3.5" aria-hidden="true" />
+            Knowledge graph
+          </TabsTrigger>
         </TabsList>
-        <TabsContent value="grid" className="mt-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {data.topics.map((topic) => (
-              <TopicCard key={topic.id} topic={topic} projectSlug={projectSlug} />
-            ))}
-          </div>
+        <TabsContent value="modules" className="mt-6">
+          <TopicsModuleView topics={data.topics} projectSlug={projectSlug} />
         </TabsContent>
-        <TabsContent value="graph" className="mt-4">
-          <KnowledgeGraph topics={data.topics} projectSlug={projectSlug} />
+        <TabsContent value="graph" className="mt-6">
+          <div className="overflow-hidden rounded-2xl border bg-card/40 p-1 shadow-sm">
+            <KnowledgeGraph topics={data.topics} projectSlug={projectSlug} />
+          </div>
         </TabsContent>
       </Tabs>
     </div>

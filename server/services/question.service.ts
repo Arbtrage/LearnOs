@@ -13,11 +13,11 @@ import { resourceRepository } from "@/server/repositories/resource.repository";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { practiceSetRepository } from "@/server/repositories/practice-set.repository";
 import {
-  filterValidQuestions,
   questionGenerationAiSchema,
   type QuestionRunnerDto,
 } from "@/types/practice";
 import { prisma } from "@/lib/db/prisma";
+import { UserFacingError } from "@/lib/errors/user-facing";
 import type { Prisma } from "@/app/generated/prisma/client";
 
 export class QuestionService {
@@ -57,7 +57,7 @@ export class QuestionService {
       project.id,
     );
     if (generationsToday >= MAX_GENERATIONS_PER_DAY) {
-      throw new Error("Daily question generation limit reached");
+      throw new UserFacingError("Daily question generation limit reached");
     }
 
     const objectives = await objectiveRepository.listByTopic(topicId, userId);
@@ -72,16 +72,28 @@ export class QuestionService {
       count,
     });
 
-    const raw = await generateStructured({
-      flow: "question-generation",
-      system: combineSystem(parts),
-      prompt: parts.user,
-      schema: questionGenerationAiSchema,
-    });
+    let raw!: (typeof questionGenerationAiSchema)["_output"];
+    let valid = normalizeGeneratedQuestions([]);
 
-    const valid = normalizeGeneratedQuestions(filterValidQuestions(raw.questions));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      raw = await generateStructured({
+        flow: "question-generation",
+        system: combineSystem(parts),
+        prompt:
+          attempt === 0
+            ? parts.user
+            : `${parts.user}\n\nPrevious attempt failed quality checks. Ensure every MCQ has 4 options with a matching optionId, TRUE_FALSE uses ids true/false, and prompts are specific (not vague).`,
+        schema: questionGenerationAiSchema,
+      });
+
+      valid = normalizeGeneratedQuestions(raw.questions);
+      if (valid.length >= 3) break;
+    }
+
     if (valid.length < 3) {
-      throw new Error("Question generation failed quality checks");
+      throw new UserFacingError(
+        `Only ${valid.length} questions passed quality checks. Try again in a moment.`,
+      );
     }
 
     const created = await prisma.$transaction(async (tx) => {

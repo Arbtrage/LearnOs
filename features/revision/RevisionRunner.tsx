@@ -4,9 +4,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { LoadingState } from "@/components/common/LoadingState";
 import { QUALITY_LABELS } from "@/lib/revision/sm2-config";
+import { workspace } from "@/constants/design";
+import { cn } from "@/lib/utils";
 import type { RevisionCardDto, RevisionQueueDto } from "@/types/revision";
 
 type RevisionRunnerProps = {
@@ -68,11 +69,11 @@ export function RevisionRunner({ projectId, projectSlug }: RevisionRunnerProps) 
 
   if (done) {
     return (
-      <div className="mx-auto max-w-lg space-y-4 text-center py-12">
+      <div className="mx-auto max-w-lg space-y-4 py-12 text-center">
         <h1 className="text-2xl font-semibold">Session complete</h1>
         <p className="text-muted-foreground">You reviewed {cards.length} cards.</p>
         <Button onClick={() => router.push(`/projects/${projectSlug}/revision`)}>
-          Back to revision
+          Back to flashcards
         </Button>
       </div>
     );
@@ -90,27 +91,27 @@ export function RevisionRunner({ projectId, projectSlug }: RevisionRunnerProps) 
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6 py-8 px-4">
-      <p className="text-sm text-muted-foreground text-center">
+    <div className="mx-auto max-w-xl space-y-6 px-4 py-8">
+      <p className="text-center text-sm text-muted-foreground">
         Card {index + 1} of {cards.length} · Space to flip · 1–4 to rate
       </p>
-      <Card
-        className="min-h-48 cursor-pointer"
+      <button
+        type="button"
+        className={cn(
+          workspace.sectionCard,
+          "min-h-52 w-full cursor-pointer p-8 text-center transition-colors hover:bg-muted/10",
+        )}
         onClick={() => setFlipped((f) => !f)}
       >
-        <CardContent className="flex min-h-48 items-center justify-center p-8 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground mb-2">{card.topicTitle}</p>
-            <p className="text-lg">{flipped ? card.back : card.front}</p>
-          </div>
-        </CardContent>
-      </Card>
+        <p className="mb-2 text-xs text-muted-foreground">{card.topicTitle}</p>
+        <p className="text-lg leading-relaxed">{flipped ? card.back : card.front}</p>
+      </button>
       {flipped ? (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {QUALITY_LABELS.map((label, i) => (
             <Button
               key={label}
-              variant={i === 0 ? "destructive" : "secondary"}
+              variant={i === 0 ? "destructive" : "outline"}
               disabled={reviewMutation.isPending}
               onClick={() => reviewMutation.mutate({ cardId: card.id, quality: i + 1 })}
             >
@@ -119,7 +120,9 @@ export function RevisionRunner({ projectId, projectSlug }: RevisionRunnerProps) 
           ))}
         </div>
       ) : (
-        <p className="text-center text-sm text-muted-foreground">Tap or press Space to reveal answer</p>
+        <p className="text-center text-sm text-muted-foreground">
+          Tap the card or press Space to reveal the answer
+        </p>
       )}
     </div>
   );

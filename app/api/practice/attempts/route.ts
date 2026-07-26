@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { isUserFacingError } from "@/lib/errors/user-facing";
 import { PracticeService } from "@/server/services/practice.service";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
@@ -31,9 +32,9 @@ export async function POST(request: Request) {
     const attempt = await PracticeService.startAttempt(session.user.id, parsed.data);
     return NextResponse.json({ attempt });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to start attempt" },
-      { status: 500 },
-    );
+    const message =
+      error instanceof Error ? error.message : "Failed to start attempt";
+    const status = isUserFacingError(error) ? 422 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

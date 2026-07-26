@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoadingState } from "@/components/common/LoadingState";
+import { parseApiError } from "@/lib/api/parse-error";
 import { PageHeader } from "@/components/common/PageHeader";
 import { PracticeHistoryList } from "@/features/practice/PracticeHistoryList";
 import { PracticeSetCard } from "@/features/practice/PracticeSetCard";
@@ -47,7 +48,9 @@ export function PracticePage({ projectId, projectSlug }: PracticePageProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error("Failed to start practice");
+      if (!res.ok) {
+        throw new Error(await parseApiError(res, "Failed to start practice"));
+      }
       const data = (await res.json()) as { attempt: { id: string } };
       return data.attempt.id;
     },

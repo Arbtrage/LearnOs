@@ -133,7 +133,7 @@ export const submitAnswerSchema = z.object({
   flaggedForReview: z.boolean().optional(),
 });
 
-const VAGUE_PATTERNS = [/understand well/i, /learn about/i, /^what is/i];
+const VAGUE_PATTERNS = [/understand well/i, /learn about/i];
 
 export function filterValidQuestions(
   items: z.infer<typeof questionAiItemSchema>[],
@@ -152,6 +152,18 @@ export function filterValidQuestions(
       const text = (item.correctAnswer as { text?: string }).text;
       const keywords = (item.correctAnswer as { keywords?: string[] }).keywords;
       if (!text && (!keywords || keywords.length === 0)) return false;
+    }
+    if (item.type === "MULTI_SELECT") {
+      const opts = item.options ?? [];
+      if (opts.length < 2) return false;
+      const ids = (item.correctAnswer as { optionIds?: string[] }).optionIds;
+      if (!ids?.length || !ids.every((id) => opts.some((o) => o.id === id))) {
+        return false;
+      }
+    }
+    if (item.type === "NUMERIC") {
+      const value = (item.correctAnswer as { value?: number }).value;
+      if (value === undefined || Number.isNaN(Number(value))) return false;
     }
     const key = item.prompt.trim().toLowerCase();
     if (seen.has(key)) return false;

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LoadingState } from "@/components/common/LoadingState";
+import { PendingButton } from "@/components/common/PendingButton";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,23 +215,28 @@ export function ExamPage({ projectId, projectSlug, topics }: ExamPageProps) {
           <p className="text-xs text-muted-foreground">
             Unmapped topics use lowest priority in the planner.
           </p>
-          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          <PendingButton
+            onClick={() => saveMutation.mutate()}
+            pending={saveMutation.isPending}
+            pendingLabel="Saving…"
+          >
             Save exam profile
-          </Button>
+          </PendingButton>
         </CardContent>
       </Card>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Mock exams</h2>
-          <Button
+          <PendingButton
             variant="outline"
             size="sm"
             onClick={() => generateMutation.mutate()}
-            disabled={generateMutation.isPending}
+            pending={generateMutation.isPending}
+            pendingLabel="Generating…"
           >
             Generate mock exam
-          </Button>
+          </PendingButton>
         </div>
         {mocks.length === 0 ? (
           <WorkspaceEmptyState
@@ -248,13 +254,14 @@ export function ExamPage({ projectId, projectSlug, topics }: ExamPageProps) {
                     {mock.lastScorePercent != null ? ` · Last: ${mock.lastScorePercent}%` : ""}
                   </p>
                 </div>
-                <Button
+                <PendingButton
                   size="sm"
                   onClick={() => startMockMutation.mutate(mock.id)}
-                  disabled={startMockMutation.isPending}
+                  pending={startMockMutation.isPending}
+                  pendingLabel="Starting…"
                 >
                   Start
-                </Button>
+                </PendingButton>
               </li>
             ))}
           </ul>

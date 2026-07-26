@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 
+export type TopicContentSectionInput = {
+  title: string;
+  bodyMarkdown: string;
+  order: number;
+};
+
 export const topicContentRepository = {
   async listByTopic(topicId: string) {
     return prisma.topicContent.findMany({
@@ -10,20 +16,21 @@ export const topicContentRepository = {
 
   async replaceForTopic(
     topicId: string,
-    data: {
-      title: string;
-      bodyMarkdown: string;
-      sourceTopicHash: string;
-    },
+    sections: TopicContentSectionInput[],
+    sourceTopicHash: string,
   ) {
     await prisma.topicContent.deleteMany({ where: { topicId } });
-    return prisma.topicContent.create({
-      data: {
+
+    if (sections.length === 0) return [];
+
+    return prisma.topicContent.createManyAndReturn({
+      data: sections.map((section) => ({
         topicId,
-        title: data.title,
-        bodyMarkdown: data.bodyMarkdown,
-        sourceTopicHash: data.sourceTopicHash,
-      },
+        title: section.title,
+        bodyMarkdown: section.bodyMarkdown,
+        order: section.order,
+        sourceTopicHash,
+      })),
     });
   },
 

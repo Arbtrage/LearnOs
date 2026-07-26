@@ -150,4 +150,52 @@ export const revisionCardRepository = {
       include: { topic: { select: { title: true, slug: true } } },
     });
   },
+
+  async listAllByProject(
+    userId: string,
+    projectId: string,
+    filters?: { topicId?: string; dueOnly?: boolean; q?: string },
+  ) {
+    const where: {
+      userId: string;
+      topic: { projectId: string; id?: string };
+      nextReviewAt?: { lte: Date };
+      OR?: Array<{ front: { contains: string; mode: "insensitive" } } | { back: { contains: string; mode: "insensitive" } }>;
+    } = {
+      userId,
+      topic: { projectId },
+    };
+
+    if (filters?.topicId) where.topic.id = filters.topicId;
+    if (filters?.dueOnly) where.nextReviewAt = { lte: utcTodayEnd() };
+    if (filters?.q) {
+      where.OR = [
+        { front: { contains: filters.q, mode: "insensitive" } },
+        { back: { contains: filters.q, mode: "insensitive" } },
+      ];
+    }
+
+    return prisma.revisionCard.findMany({
+      where,
+      include: {
+        topic: { select: { id: true, title: true, slug: true, projectId: true } },
+      },
+      orderBy: [{ nextReviewAt: "asc" }, { createdAt: "desc" }],
+    });
+  },
+
+  async update(
+    id: string,
+    data: { front?: string; back?: string; topicId?: string },
+  ) {
+    return prisma.revisionCard.update({
+      where: { id },
+      data,
+      include: { topic: { select: { id: true, title: true, slug: true } } },
+    });
+  },
+
+  async delete(id: string) {
+    return prisma.revisionCard.delete({ where: { id } });
+  },
 };

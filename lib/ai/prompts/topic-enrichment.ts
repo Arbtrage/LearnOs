@@ -67,14 +67,28 @@ export function buildTopicLessonPrompt(input: {
   projectGoal: string;
 }): PromptParts {
   return {
-    staticSystem: `You write a short internal markdown lesson for LearnOS.
+    staticSystem: `You write ordered lesson sections for LearnOS as JSON.
 
-Rules:
-1. Use ONLY the topic title and description provided — do not invent external studies, statistics, or citations.
-2. No fake paper titles, author names, or URLs.
-3. Structure: brief intro, 3-5 key points, one mini example, summary.
-4. Max ~600 words.`,
+Pedagogical structure — return 2 or 3 sections with these roles and order values:
+- order 0: "Understand" — concepts, definitions, mental model (400-700 words)
+- order 1: "Apply" — worked example, step-by-step procedure (400-700 words)
+- order 2: "Check" — common mistakes, self-check questions, summary (400-700 words)
+
+Use 3 sections for standard topics; 2 sections only if the topic is very narrow (still include Understand + Check).
+
+Trust rules:
+1. Use ONLY the topic title and description — no invented studies, statistics, citations, or URLs.
+2. No fake paper titles, author names, or external links.
+
+Per-section bodyMarkdown rules:
+- Do NOT use # H1 (the page already shows the topic title).
+- Use ### and #### for subheadings inside each section.
+- Use - bullet lists for concepts; use 1. numbered lists for procedures.
+- Include at least one callout: > **Tip:** or > **Watch out:**
+- Bold **key terms** when first introduced.
+- Use fenced code blocks with a language tag when the topic is technical.
+- Write teachable prose, not a bare outline.`,
     dynamicSystem: `Project goal: ${input.projectGoal}`,
-    user: `Topic: ${input.title}\n\nDescription:\n${input.description}\n\nWrite the lesson JSON.`,
+    user: `Topic: ${input.title}\n\nDescription:\n${input.description}\n\nReturn lesson sections JSON.`,
   };
 }

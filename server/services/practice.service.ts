@@ -16,6 +16,7 @@ import type {
   TopicProgressMetadata,
 } from "@/types/practice";
 import type { PracticeAttemptMode } from "@/app/generated/prisma/client";
+import { UserFacingError } from "@/lib/errors/user-facing";
 
 function shuffle<T>(items: T[]): T[] {
   const copy = [...items];
@@ -43,10 +44,12 @@ export class PracticeService {
     if (input.practiceSetId) {
       const set = await practiceSetRepository.findById(input.practiceSetId);
       if (!set || set.topicId !== input.topicId) {
-        throw new Error("Practice set not found");
+        throw new UserFacingError("Practice set not found");
       }
       const project = await projectRepository.findById(set.topic.projectId);
-      if (!project || project.userId !== userId) throw new Error("Practice set not found");
+      if (!project || project.userId !== userId) {
+        throw new UserFacingError("Practice set not found");
+      }
       questionIds = Array.isArray(set.questionIds) ? (set.questionIds as string[]) : [];
     } else if (mode === "REVIEW_WRONG") {
       questionIds = await practiceAttemptRepository.findWrongQuestionIds(
@@ -59,10 +62,43 @@ export class PracticeService {
     }
 
     const count = input.questionCount ?? 10;
+
+    if (questionIds.length === 0 && mode !== "REVIEW_WRONG") {
+      try {
+        await QuestionService.generateForTopic(userId, input.topicId, count);
+
+        if (input.practiceSetId) {
+          const set = await practiceSetRepository.findById(input.practiceSetId);
+          questionIds = Array.isArray(set?.questionIds)
+            ? (set!.questionIds as string[])
+            : [];
+        }
+
+        if (questionIds.length === 0) {
+          const bank = await questionRepository.listActiveByTopic(input.topicId);
+          questionIds = bank.map((q) => q.id);
+        }
+      } catch (error) {
+        if (error instanceof UserFacingError) throw error;
+        const message =
+          error instanceof Error ? error.message : "Question generation failed";
+        throw new UserFacingError(
+          message.includes("quality checks") || message.includes("generation")
+            ? "Could not generate practice questions. Try again later."
+            : message,
+        );
+      }
+    }
+
     questionIds = shuffle(questionIds).slice(0, count);
 
     if (questionIds.length === 0) {
-      throw new Error("No questions available for this topic");
+      if (mode === "REVIEW_WRONG") {
+        throw new UserFacingError("No wrong answers to review yet.");
+      }
+      throw new UserFacingError(
+        "Could not generate practice questions. Try again later.",
+      );
     }
 
     const attempt = await practiceAttemptRepository.create({

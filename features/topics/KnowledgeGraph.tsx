@@ -104,7 +104,7 @@ export function KnowledgeGraph({ topics, projectSlug }: KnowledgeGraphProps) {
   }, [search, setNodes]);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 rounded-xl border bg-background/50 p-4">
       <Input
         value={search}
         onChange={(event) => setSearch(event.target.value)}

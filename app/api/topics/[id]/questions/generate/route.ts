@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { isUserFacingError } from "@/lib/errors/user-facing";
 import { QuestionService } from "@/server/services/question.service";
 import { topicRepository } from "@/server/repositories/topic.repository";
 import { projectRepository } from "@/server/repositories/project.repository";
@@ -39,9 +40,8 @@ export async function POST(
     );
     return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Generation failed" },
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : "Generation failed";
+    const status = isUserFacingError(error) ? 422 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

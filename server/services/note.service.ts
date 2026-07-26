@@ -33,6 +33,12 @@ export class NoteService {
     return notes.map(toDto);
   }
 
+  static async get(userId: string, noteId: string): Promise<NoteDto> {
+    const note = await noteRepository.findById(noteId);
+    if (!note || note.userId !== userId) throw new Error("Note not found");
+    return toDto(note);
+  }
+
   static async create(
     userId: string,
     projectId: string,

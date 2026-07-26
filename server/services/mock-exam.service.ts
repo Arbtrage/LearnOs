@@ -15,9 +15,7 @@ import { revisionCardRepository } from "@/server/repositories/revision-card.repo
 import { studyTaskRepository } from "@/server/repositories/study-task.repository";
 import { QuestionService } from "@/server/services/question.service";
 import { ExamProfileService } from "@/server/services/exam-profile.service";
-import {
-  filterValidQuestions,
-} from "@/types/practice";
+import { normalizeGeneratedQuestions } from "@/lib/practice/normalize-questions";
 import {
   mockExamGenerationAiSchema,
   type MockExamAttemptDto,
@@ -117,7 +115,7 @@ export class MockExamService {
       const chunkSize = Math.ceil(raw.questions.length / sections.length);
       const sectionQuestions = raw.questions.slice(si * chunkSize, (si + 1) * chunkSize);
 
-      const validItems = filterValidQuestions(
+      const validItems = normalizeGeneratedQuestions(
         sectionQuestions.map((q) => ({
           type: q.type,
           prompt: q.prompt,
