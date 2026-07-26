@@ -15,12 +15,17 @@ export const generationStepSchema = z.object({
 
 export type GenerationStepUpdate = z.infer<typeof generationStepSchema>;
 
+/** Plain channel id — safe to pass from client hooks without Zod schemas. */
+export function projectChannelId(projectId: string) {
+  return `project:${projectId}` as const;
+}
+
 /**
  * One channel per project. Progress is published from inside durable steps so
  * a retry replays the memoized publish rather than re-emitting stale states.
  */
 export const projectChannel = realtime.channel({
-  name: (projectId: string) => `project:${projectId}`,
+  name: (projectId: string) => projectChannelId(projectId),
   topics: {
     generation: { schema: generationStepSchema },
   },

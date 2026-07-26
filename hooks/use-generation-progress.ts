@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRealtime } from "inngest/react";
-import { projectChannel, type GenerationStepUpdate } from "@/lib/jobs/channels";
+import { projectChannelId, type GenerationStepUpdate } from "@/lib/jobs/channels";
 import { fetchProjectRealtimeToken } from "@/lib/jobs/realtime.actions";
 
 type UseGenerationProgressOptions = {
@@ -40,7 +40,7 @@ export function useGenerationProgress({
   );
 
   const { messages, connectionStatus } = useRealtime({
-    channel: projectChannel(projectId),
+    channel: projectChannelId(projectId),
     topics: ["generation"],
     token,
     enabled,

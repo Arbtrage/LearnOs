@@ -18,13 +18,14 @@ export function SageSpotlightSection() {
           </h2>
           <p className="mt-4 text-muted-foreground">
             Sage isn&apos;t a generic chatbot. It knows your syllabus, progress, weak topics, and
-            today&apos;s plan — so every answer is grounded in what you&apos;re actually studying.
+            today&apos;s plan — and it remembers past sessions, so advice builds on what you
+            actually struggled with.
           </p>
           <ul className="mt-6 space-y-2 text-sm">
             {[
               "Explain concepts in plain language",
               "Reschedule when you're behind",
-              "Motivate you to stay consistent",
+              "Remember your mistakes and preferences across sessions",
               "Plan focused study sessions",
             ].map((item) => (
               <li key={item} className="flex items-start gap-2">

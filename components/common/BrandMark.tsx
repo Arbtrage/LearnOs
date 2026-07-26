@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 type BrandMarkProps = {
@@ -17,9 +17,15 @@ export function BrandMark({
 }: BrandMarkProps) {
   const content = (
     <span className={cn("flex min-w-0 items-center gap-2.5", className)}>
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg gradient-primary shadow-elegant">
-        <Sparkles className="size-4 text-primary-foreground" aria-hidden="true" />
-      </span>
+      <Image
+        src="/logo.svg"
+        alt=""
+        width={32}
+        height={32}
+        className="size-8 shrink-0 rounded-lg shadow-elegant"
+        aria-hidden
+        priority
+      />
       <span className="min-w-0 leading-tight">
         <span className="block truncate text-sm font-semibold tracking-tight">LearnOS</span>
         {showTagline && tagline ? (

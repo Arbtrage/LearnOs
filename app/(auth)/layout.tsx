@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { AppLogo } from "@/components/common/AppLogo";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,9 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           href="/"
           className="mb-6 flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
-          <div className="grid size-7 place-items-center rounded-md gradient-primary">
-            <Sparkles className="size-3.5 text-primary-foreground" />
-          </div>
+          <AppLogo href="/" size="sm" />
           <span className="font-semibold text-foreground">LearnOS</span>
         </Link>
         {children}

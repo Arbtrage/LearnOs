@@ -3,6 +3,7 @@ import { OnboardingChatMock, RoadmapMock } from "@/features/marketing/components
 import { PracticeMock, RevisionMock } from "@/features/marketing/components/PracticeMock";
 import { AnalyticsMock } from "@/features/marketing/components/AnalyticsMock";
 import { WorkspaceHeroMock } from "@/features/marketing/components/WorkspaceHeroMock";
+import { Reveal } from "@/features/marketing/components/Reveal";
 import { marketing } from "@/constants/design";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ const SHOWCASES: ShowcaseItem[] = [
     bullets: [
       "Structured interview, not a blank prompt",
       "Blueprint generated from your answers",
-      "Workspace ready in minutes",
+      "Watch each generation step complete, live",
     ],
     artifact: (
       <ProductFrame url="learnos.app / onboarding">
@@ -76,8 +77,8 @@ const SHOWCASES: ShowcaseItem[] = [
     description:
       "Run practice sets on specific topics, review mistakes, and take timed mock exams with readiness scoring so you know where you stand.",
     bullets: [
-      "Topic-scoped practice sets",
-      "Mistake tracking",
+      "Fresh sets pre-generated for weak topics",
+      "Mistakes remembered — future sets adapt",
       "Mock exams with readiness score",
     ],
     artifact: (
@@ -139,7 +140,7 @@ export function FeatureShowcases() {
             key={item.id}
             className={cn(marketing.showcase, item.reverse && "lg:[&>*:first-child]:order-2")}
           >
-            <div>
+            <Reveal x={item.reverse ? 24 : -24} y={0}>
               <p className="text-xs font-medium uppercase tracking-widest text-primary">
                 {item.eyebrow}
               </p>
@@ -155,8 +156,10 @@ export function FeatureShowcases() {
                   </li>
                 ))}
               </ul>
-            </div>
-            <div>{item.artifact}</div>
+            </Reveal>
+            <Reveal y={32} delay={0.1}>
+              {item.artifact}
+            </Reveal>
           </div>
         ))}
       </div>

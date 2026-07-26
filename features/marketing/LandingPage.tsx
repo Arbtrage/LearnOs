@@ -1,14 +1,14 @@
+import { AiPlatformSection } from "@/features/marketing/AiPlatformSection";
 import { CtaSection, MarketingFooter } from "@/features/marketing/CtaSection";
 import { FaqSection } from "@/features/marketing/FaqSection";
 import { FeatureShowcases } from "@/features/marketing/FeatureShowcases";
+import { FrameworkSection } from "@/features/marketing/FrameworkSection";
 import { HeroSection } from "@/features/marketing/HeroSection";
 import { HowItWorks } from "@/features/marketing/HowItWorks";
-import { LearningLoopSection } from "@/features/marketing/LearningLoopSection";
 import { LogosStrip } from "@/features/marketing/LogosStrip";
 import { MarketingNav } from "@/features/marketing/MarketingNav";
 import { SageSpotlightSection } from "@/features/marketing/SageSpotlightSection";
 import { UseCasesSection } from "@/features/marketing/UseCasesSection";
-import { WorkspacePreviewSection } from "@/features/marketing/WorkspacePreviewSection";
 
 export function LandingPage() {
   return (
@@ -16,11 +16,11 @@ export function LandingPage() {
       <MarketingNav />
       <HeroSection />
       <LogosStrip />
-      <LearningLoopSection />
-      <FeatureShowcases />
-      <WorkspacePreviewSection />
-      <SageSpotlightSection />
+      <FrameworkSection />
       <HowItWorks />
+      <AiPlatformSection />
+      <FeatureShowcases />
+      <SageSpotlightSection />
       <UseCasesSection />
       <FaqSection />
       <CtaSection />

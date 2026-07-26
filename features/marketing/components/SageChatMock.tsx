@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Brain, Sparkles } from "lucide-react";
 import { MENTOR_NAME } from "@/constants/ai-persona";
 import { cn } from "@/lib/utils";
 
@@ -36,9 +36,15 @@ export function SageChatMock({ showPrompts = true, className }: SageChatMockProp
             <Sparkles className="size-3 text-primary" />
           </div>
           <div className="max-w-[85%] rounded-2xl border border-border bg-card px-3 py-2 text-xs leading-relaxed">
-            Done. I moved the RC set to 7 PM and shortened revision to 20 min. You&apos;ll still
-            finish core objectives in ~48 minutes.
+            Done. I moved the RC set to 7 PM and shortened revision to 20 min. Also — last
+            week you missed two questions on ratios. Want a 10-minute refresher first?
           </div>
+        </div>
+        <div className="flex justify-start pl-8">
+          <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+            <Brain className="size-2.5" aria-hidden />
+            Remembered: ratios ×2 last week
+          </span>
         </div>
       </div>
       {showPrompts ? (

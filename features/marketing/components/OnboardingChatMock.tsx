@@ -1,3 +1,4 @@
+import { Check, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 const MESSAGES = [
@@ -51,7 +52,7 @@ export function CreateProjectMock() {
   );
 }
 
-export function RoadmapMock() {
+export function RoadmapMock({ showReadiness = false }: { showReadiness?: boolean }) {
   const stages = [
     { name: "Foundation", progress: 100 },
     { name: "Core concepts", progress: 62 },
@@ -69,6 +70,16 @@ export function RoadmapMock() {
           <Progress value={stage.progress} className="mt-2 h-1.5" />
         </div>
       ))}
+      {showReadiness ? (
+        <div className="flex flex-wrap gap-1.5">
+          <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">
+            <Check className="size-2.5" aria-hidden /> Lessons ready
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            <Loader2 className="size-2.5 animate-spin" aria-hidden /> Questions preparing
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

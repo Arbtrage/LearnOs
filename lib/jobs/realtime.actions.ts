@@ -1,6 +1,6 @@
 "use server";
 
-import { getSubscriptionToken } from "inngest/realtime";
+import { getClientSubscriptionToken } from "inngest/react";
 import { auth } from "@/lib/auth";
 import { inngest } from "@/lib/jobs/client";
 import { projectChannel } from "@/lib/jobs/channels";
@@ -21,7 +21,7 @@ export async function fetchProjectRealtimeToken(projectId: string) {
     throw new Error("Project not found");
   }
 
-  return getSubscriptionToken(inngest, {
+  return getClientSubscriptionToken(inngest, {
     channel: projectChannel(projectId),
     topics: ["generation"],
   });

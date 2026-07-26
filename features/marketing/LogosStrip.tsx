@@ -9,14 +9,28 @@ export function LogosStrip() {
         <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
           Built for ambitious learners preparing for
         </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-          {GOALS.map((goal) => (
-            <span key={goal} className="text-sm font-semibold text-muted-foreground/80">
-              {goal}
-            </span>
-          ))}
+        <div
+          className="relative mt-5 overflow-hidden"
+          style={{
+            maskImage:
+              "linear-gradient(to right, transparent, black 15%, black 85%, transparent)",
+          }}
+        >
+          {/* Per-item margins (not gap) keep each copy exactly half the track,
+              so the -50% marquee keyframe loops seamlessly. */}
+          <div className="flex w-max animate-marquee items-center">
+            {[...GOALS, ...GOALS].map((goal, i) => (
+              <span
+                key={`${goal}-${i}`}
+                aria-hidden={i >= GOALS.length || undefined}
+                className="mx-7 text-sm font-semibold tracking-wide text-muted-foreground/80"
+              >
+                {goal}
+              </span>
+            ))}
+          </div>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
+        <p className="mt-5 text-sm text-muted-foreground">
           Exams, professional certifications, languages, and skill-based curricula.
         </p>
       </div>
