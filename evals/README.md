@@ -6,6 +6,8 @@ This is a Python package rather than part of the Next app for one reason:
 `mlflow.genai.evaluate` and its LLM-judge scorers are Python-only. The
 TypeScript MLflow SDK (`mlflow-tracing`) handles tracing, not evaluation.
 
+**Docs:** [development guide](../docs/development.md) · [AI platform](../docs/ai-platform.md) · [Databricks setup](../docs/databricks-setup.md) · [deployment / CI](../docs/deployment.md)
+
 ## How the pieces fit
 
 | Piece | Lives in | Role |
@@ -40,20 +42,34 @@ It does **not** need a database connection.
 # Deterministic scorers only — free, no LLM calls, no Databricks.
 python -m learnos_evals.run --all --no-judges
 
-# Full run including judges (needs Databricks + a judge model key).
+# Full run including judges (needs GOOGLE_API_KEY; Databricks optional for logging).
 python -m learnos_evals.run --task topic.lesson
 
 # Accept the current scores as the new regression baseline.
 python -m learnos_evals.run --all --update-baselines
 ```
 
-Environment for a full run:
+### Environment
 
-| Variable | Purpose |
-| --- | --- |
-| `MLFLOW_TRACKING_URI` | `databricks` for the managed service |
-| `MLFLOW_EXPERIMENT_ID` | Target experiment |
-| `DATABRICKS_HOST` / `DATABRICKS_TOKEN` | Auth, or a `~/.databrickscfg` profile |
+| Variable | Required for | Purpose |
+| --- | --- | --- |
+| _(none)_ | `--no-judges` | Deterministic path — recommended for local dev and free CI |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Full judges | Gemini LLM-as-judge calls |
+| `MLFLOW_TRACKING_URI` | MLflow logging | `databricks` for managed service |
+| `MLFLOW_EXPERIMENT_ID` | MLflow logging | Target experiment (defaults to `/Shared/learnos-evals`) |
+| `DATABRICKS_HOST` / `DATABRICKS_TOKEN` | Databricks auth | PAT auth, or a `~/.databrickscfg` profile |
+
+See [docs/databricks-setup.md](../docs/databricks-setup.md) for Free Edition setup.
+
+## CI
+
+GitHub Actions workflow: `.github/workflows/evals.yml`
+
+- Runs on PRs that touch AI code, weekly, or manual dispatch
+- Without Databricks secrets: `--no-judges` automatically
+- With Databricks + Gemini key: full eval run with MLflow logging
+
+Configure `LEARNOS_APP_URL` and `CRON_SECRET` for weekly production traffic export.
 
 ## Growing the dataset
 
