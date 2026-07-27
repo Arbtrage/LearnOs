@@ -152,4 +152,25 @@ export function normalizeGeneratedQuestions(questions: AiQuestion[]): AiQuestion
   return filterValidQuestions(questions.map(normalizeQuestion));
 }
 
+/** Keeps topicIndex aligned when invalid questions are dropped. */
+export function normalizeMockExamQuestions(
+  questions: Array<
+    AiQuestion & {
+      topicIndex: number;
+    }
+  >,
+): Array<AiQuestion & { topicIndex: number }> {
+  const result: Array<AiQuestion & { topicIndex: number }> = [];
+
+  for (const raw of questions) {
+    const normalized = normalizeQuestion(raw);
+    const [valid] = filterValidQuestions([normalized]);
+    if (valid) {
+      result.push({ ...valid, topicIndex: raw.topicIndex });
+    }
+  }
+
+  return result;
+}
+
 export const MAX_GENERATIONS_PER_DAY = 3;

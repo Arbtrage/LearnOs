@@ -31,7 +31,9 @@ export {
   mockExamTask,
   questionGenerationTask,
   MIN_USABLE_QUESTIONS,
+  MIN_MOCK_EXAM_QUESTIONS,
   type MockExamInput,
+  type MockExamOutput,
   type QuestionGenerationInput,
   type QuestionGenerationOutput,
 } from "@/lib/ai/kernel/tasks/practice";

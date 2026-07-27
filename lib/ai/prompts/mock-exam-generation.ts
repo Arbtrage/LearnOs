@@ -22,9 +22,13 @@ export function buildMockExamGenerationPrompt(input: {
   return {
     staticSystem: [
       "You generate cross-topic mock exam questions for exam preparation.",
-      "Each question must map to a topicIndex within its section.",
+      "Each question must map to topicIndex (0-based index into that section's topic list).",
       "Use MCQ, TRUE_FALSE, or SHORT_ANSWER only.",
-      "Include explanation for every question.",
+      "For MCQ: exactly 4 options with ids a, b, c, d and set correctAnswer.optionId to one of those ids.",
+      "For TRUE_FALSE: option ids must be true and false with matching correctAnswer.optionId.",
+      "For SHORT_ANSWER: correctAnswer must include text and optional keywords array.",
+      "Include a clear explanation for every question.",
+      "Write specific, exam-style prompts — never vague placeholders.",
       "Do not invent URLs.",
     ].join("\n"),
     user: [

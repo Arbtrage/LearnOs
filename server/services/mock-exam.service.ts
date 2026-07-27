@@ -1,5 +1,5 @@
 import { runAiTask } from "@/lib/ai/kernel";
-import { mockExamTask } from "@/lib/ai/kernel/tasks";
+import { mockExamTask, MIN_MOCK_EXAM_QUESTIONS } from "@/lib/ai/kernel/tasks";
 import { captureEpisode } from "@/lib/ai/memory/capture";
 import { gradeAnswer } from "@/lib/practice/grade-answer";
 import {
@@ -15,7 +15,6 @@ import { revisionCardRepository } from "@/server/repositories/revision-card.repo
 import { studyTaskRepository } from "@/server/repositories/study-task.repository";
 import { QuestionService } from "@/server/services/question.service";
 import { ExamProfileService } from "@/server/services/exam-profile.service";
-import { normalizeGeneratedQuestions } from "@/lib/practice/normalize-questions";
 import {
   type MockExamAttemptDto,
   type MockExamDto,
@@ -92,6 +91,10 @@ export class MockExamService {
             },
           ];
 
+    if (topics.length === 0) {
+      throw new Error("Add topics to your roadmap before generating a mock exam");
+    }
+
     const perSection = Math.max(3, Math.ceil(questionCount / sections.length));
     const raw = await runAiTask(
       mockExamTask,
@@ -106,47 +109,27 @@ export class MockExamService {
 
     const allQuestionIds: string[] = [];
 
-    for (let si = 0; si < sections.length; si += 1) {
-      const section = sections[si]!;
-      const chunkSize = Math.ceil(raw.questions.length / sections.length);
-      const sectionQuestions = raw.questions.slice(si * chunkSize, (si + 1) * chunkSize);
+    for (const item of raw.questions) {
+      const topic = topics[item.topicIndex % topics.length];
+      if (!topic) continue;
 
-      const validItems = normalizeGeneratedQuestions(
-        sectionQuestions.map((q) => ({
-          type: q.type,
-          prompt: q.prompt,
-          options: q.options,
-          correctAnswer: q.correctAnswer,
-          explanation: q.explanation,
-          difficulty: "INTERMEDIATE" as const,
-        })),
-      );
-
-      for (let ti = 0; ti < validItems.length; ti += 1) {
-        const item = validItems[ti]!;
-        const topicTitle = section.topics[ti % Math.max(1, section.topics.length)]?.title;
-        const topic =
-          topics.find((t) => t.title === topicTitle) ?? topics[si % topics.length];
-        if (!topic) continue;
-
-        const row = await prisma.question.create({
-          data: {
-            topicId: topic.id,
-            type: item.type,
-            prompt: item.prompt,
-            options: item.options ?? undefined,
-            correctAnswer: item.correctAnswer as Prisma.InputJsonValue,
-            explanation: item.explanation,
-            difficulty: "INTERMEDIATE",
-            tags: ["mock-exam"],
-            source: "AI",
-          },
-        });
-        allQuestionIds.push(row.id);
-      }
+      const row = await prisma.question.create({
+        data: {
+          topicId: topic.id,
+          type: item.type,
+          prompt: item.prompt,
+          options: item.options ?? undefined,
+          correctAnswer: item.correctAnswer as Prisma.InputJsonValue,
+          explanation: item.explanation,
+          difficulty: item.difficulty ?? "INTERMEDIATE",
+          tags: ["mock-exam"],
+          source: "AI",
+        },
+      });
+      allQuestionIds.push(row.id);
     }
 
-    if (allQuestionIds.length < 5) {
+    if (allQuestionIds.length < MIN_MOCK_EXAM_QUESTIONS) {
       throw new Error("Mock exam generation failed quality checks");
     }
 

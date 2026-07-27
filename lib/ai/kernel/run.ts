@@ -73,15 +73,20 @@ export async function runAiTaskWithMeta<TInput, TSchema extends z.ZodType, TOutp
       const validation = task.validate?.(output, input) ?? { ok: true };
       const isLastAttempt = attempt === maxAttempts;
 
-      if (!validation.ok && !isLastAttempt) {
+      if (!validation.ok) {
         lastIssues = validation.issues ?? [];
-        continue;
+        if (!isLastAttempt) {
+          continue;
+        }
+        throw new AIProviderError(
+          `Task ${task.id} failed validation after ${maxAttempts} attempts: ${lastIssues.join("; ")}`,
+        );
       }
 
       const runId = await recordAiRun({
         taskId: task.id,
         flow: task.flow,
-        status: validation.ok ? "SUCCESS" : "DEGRADED",
+        status: "SUCCESS",
         userId: invocation.userId,
         projectId: invocation.projectId,
         topicId: invocation.topicId,
@@ -96,7 +101,7 @@ export async function runAiTaskWithMeta<TInput, TSchema extends z.ZodType, TOutp
         traceId: span.traceId,
         input,
         output,
-        error: validation.ok ? null : (validation.issues ?? []).join("; "),
+        error: null,
       });
 
       span.setOutputs({ output });

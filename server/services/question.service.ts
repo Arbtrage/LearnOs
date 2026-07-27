@@ -1,5 +1,5 @@
 import { runAiTask } from "@/lib/ai/kernel";
-import { questionGenerationTask } from "@/lib/ai/kernel/tasks";
+import { questionGenerationTask, MIN_USABLE_QUESTIONS } from "@/lib/ai/kernel/tasks";
 import { MAX_GENERATIONS_PER_DAY } from "@/lib/practice/normalize-questions";
 import { gradeAnswer, toRunnerOptions } from "@/lib/practice/grade-answer";
 import { objectiveRepository } from "@/server/repositories/objective.repository";
@@ -77,6 +77,11 @@ export class QuestionService {
     }
 
     const valid = generated.questions;
+    if (valid.length < MIN_USABLE_QUESTIONS) {
+      throw new UserFacingError(
+        "Not enough questions passed quality checks. Try again in a moment.",
+      );
+    }
 
     const created = await prisma.$transaction(async (tx) => {
       const rows = [];
